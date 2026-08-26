@@ -91,12 +91,17 @@ function stripSourceMapComment(source: string): string {
 }
 
 const HOW_TO_RUN = [
-  "Write this bundle's JSON to bundle.json.",
-  "Write the runner field to runner.py.",
-  "Run: python3 runner.py bundle.json",
-  "The runner provisions Node if absent, writes the deployed modules, executes the",
-  "replay and prints one JSON object with results, firstBadVersion and lastGoodVersion.",
-].join(" ");
+  "Do not copy this bundle through your context; it is large.",
+  "If the tool result was saved to a file, use that path as BUNDLE.",
+  "Otherwise write the tool result verbatim to bundle.json and use that as BUNDLE.",
+  "Then run exactly two commands:",
+  "python3 -c \"import json,sys;print(json.load(open(sys.argv[1]))['runner'])\" BUNDLE > runner.py",
+  "python3 runner.py BUNDLE",
+  "The runner provisions Node if the sandbox has none, then replays every recorded",
+  "request against every candidate version and prints one JSON object with results,",
+  "firstBadVersion and lastGoodVersion. Do not write your own replay implementation:",
+  "a replay you wrote yourself tests your paraphrase, not the deployed code.",
+].join(" ")
 
 const RUNNER_SOURCE = `import json, os, shutil, subprocess, sys, tarfile, urllib.request
 
