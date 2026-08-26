@@ -21,6 +21,8 @@ const server = await startMcpHttpServer({
   instructions:
     "Deploy history and rollback for the checkout service. list-deploys is read-only. rollback-deploy changes which version serves live traffic and is gated on human approval by the harness.",
   port: config.PORT,
+  host: config.HOST,
+  requireAuth: true,
   bearerToken: config.MCP_BEARER_TOKEN,
   registerTools: (mcp) => registerDeployTools(mcp, client),
 });

@@ -1,14 +1,27 @@
 import { z } from "zod";
 
-const schema = z.object({
-  PORT: z.coerce.number().int().positive(),
-  CHECKOUT_BASE_URL: z.string().url(),
-  MCP_BEARER_TOKEN: z.string().min(16).optional(),
-  CHECKOUT_ADMIN_TOKEN: z.string().min(8).optional(),
-  REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
-});
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+
+const schema = z
+  .object({
+    PORT: z.coerce.number().int().positive(),
+    HOST: z.string().min(1).default("127.0.0.1"),
+    CHECKOUT_BASE_URL: z.string().url(),
+    MCP_BEARER_TOKEN: z.string().min(16).optional(),
+    CHECKOUT_ADMIN_TOKEN: z.string().min(8).optional(),
+    REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+  })
+  .refine((config) => LOOPBACK_HOSTS.has(config.HOST) || config.MCP_BEARER_TOKEN, {
+    message:
+      "MCP_BEARER_TOKEN is required when HOST is not loopback: an unauthenticated MCP endpoint on a routable interface lets any network client reach its tools directly, bypassing the harness approval gate",
+    path: ["MCP_BEARER_TOKEN"],
+  });
 
 export type RuntimeConfig = z.infer<typeof schema>;
+
+export function isLoopbackHost(host: string): boolean {
+  return LOOPBACK_HOSTS.has(host);
+}
 
 export function loadRuntimeConfig(
   defaults: Partial<Record<keyof RuntimeConfig, string>>,

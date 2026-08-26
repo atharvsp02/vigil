@@ -16,6 +16,7 @@ const server = await startMcpHttpServer({
   instructions:
     "Read-only access to the checkout service's metrics and logs. Nothing here changes state, so these tools are safe to call freely while gathering evidence.",
   port: config.PORT,
+  host: config.HOST,
   bearerToken: config.MCP_BEARER_TOKEN,
   registerTools: (mcp) => registerObservabilityTools(mcp, client),
 });

@@ -1,4 +1,8 @@
-import { CheckoutServiceError, CheckoutServiceUnreachableError } from "@vigil/checkout-client";
+import {
+  CheckoutServiceError,
+  CheckoutServiceInvalidResponseError,
+  CheckoutServiceUnreachableError,
+} from "@vigil/checkout-client";
 
 export interface ToolResult {
   [key: string]: unknown;
@@ -21,6 +25,11 @@ export async function guard(work: () => Promise<unknown>): Promise<ToolResult> {
     if (error instanceof CheckoutServiceError) {
       return failure(
         `The checkout service rejected the request (HTTP ${error.status}). Response body: ${error.body}`,
+      );
+    }
+    if (error instanceof CheckoutServiceInvalidResponseError) {
+      return failure(
+        `The checkout service answered with HTTP ${error.status} but the body was not valid JSON. This is an upstream contract failure, not a network problem. Body: ${error.body}`,
       );
     }
     if (error instanceof CheckoutServiceUnreachableError) {

@@ -1,4 +1,8 @@
-import { CheckoutServiceError, CheckoutServiceUnreachableError } from "./errors.js";
+import {
+  CheckoutServiceError,
+  CheckoutServiceInvalidResponseError,
+  CheckoutServiceUnreachableError,
+} from "./errors.js";
 import type {
   ActivationResult,
   DeployList,
@@ -77,9 +81,20 @@ export class CheckoutClient {
           text,
         );
       }
-      return JSON.parse(text) as T;
+      try {
+        return JSON.parse(text) as T;
+      } catch {
+        throw new CheckoutServiceInvalidResponseError(
+          `${method} ${path} returned HTTP ${response.status} with a body that is not valid JSON`,
+          response.status,
+          text.slice(0, 500),
+        );
+      }
     } catch (error) {
-      if (error instanceof CheckoutServiceError) {
+      if (
+        error instanceof CheckoutServiceError ||
+        error instanceof CheckoutServiceInvalidResponseError
+      ) {
         throw error;
       }
       throw new CheckoutServiceUnreachableError(

@@ -10,7 +10,9 @@ export interface McpHttpServerOptions {
   version: string;
   instructions: string;
   port: number;
+  host: string;
   bearerToken?: string | undefined;
+  requireAuth?: boolean | undefined;
   registerTools: (server: McpServer) => void;
 }
 
@@ -23,6 +25,11 @@ export interface RunningMcpServer {
 export async function startMcpHttpServer(
   options: McpHttpServerOptions,
 ): Promise<RunningMcpServer> {
+  if (options.requireAuth && !options.bearerToken) {
+    throw new Error(
+      `${options.name} holds write credentials and refuses to start without MCP_BEARER_TOKEN`,
+    );
+  }
   const app = express();
   app.disable("x-powered-by");
   app.use(express.json({ limit: "1mb" }));
@@ -74,7 +81,7 @@ export async function startMcpHttpServer(
   });
 
   const httpServer = await new Promise<Server>((resolve, reject) => {
-    const started = app.listen(options.port, () => resolve(started));
+    const started = app.listen(options.port, options.host, () => resolve(started));
     started.once("error", reject);
   });
 
@@ -83,7 +90,7 @@ export async function startMcpHttpServer(
 
   return {
     port: boundPort,
-    url: `http://127.0.0.1:${boundPort}/mcp`,
+    url: `http://${options.host}:${boundPort}/mcp`,
     close: () =>
       new Promise<void>((resolve, reject) => {
         httpServer.close((error) => (error ? reject(error) : resolve()));

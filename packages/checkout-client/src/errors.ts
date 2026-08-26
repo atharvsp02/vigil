@@ -18,3 +18,14 @@ export class CheckoutServiceUnreachableError extends Error {
     this.name = "CheckoutServiceUnreachableError";
   }
 }
+
+export class CheckoutServiceInvalidResponseError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly body: string,
+  ) {
+    super(message);
+    this.name = "CheckoutServiceInvalidResponseError";
+  }
+}
