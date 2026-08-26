@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { activeDeployRecord } from "../db.js";
+import { activeDeployRecord, recordRequestSample } from "../db.js";
 import type { Db } from "../db.js";
 import type { Logger } from "../logger.js";
 import {
@@ -26,8 +26,23 @@ const bodySchema = z.object({
   currency: z.string().length(3).default("USD"),
 });
 
+const SAMPLE_RETENTION = 500;
+
 export function checkoutRouter(db: Db, logger: Logger): Router {
   const router = Router();
+
+  const sample = (version: string, request: CheckoutRequest, statusCode: number): void => {
+    recordRequestSample(
+      db,
+      {
+        ts: new Date().toISOString(),
+        version,
+        payload: JSON.stringify(request),
+        status_code: statusCode,
+      },
+      SAMPLE_RETENTION,
+    );
+  };
 
   router.post("/checkout", (req, res) => {
     const requestId = randomUUID();
@@ -79,6 +94,7 @@ export function checkoutRouter(db: Db, logger: Logger): Router {
           payableCents: priced.payableCents,
         },
       });
+      sample(active.version, request, 200);
       res.status(200).json({
         orderId: randomUUID(),
         subtotalCents: priced.subtotalCents,
@@ -110,6 +126,7 @@ export function checkoutRouter(db: Db, logger: Logger): Router {
           variant: active.variant,
         },
       });
+      sample(active.version, request, 500);
       res.status(500).json({ error: "payment_authorization_failed", requestId });
     }
   });

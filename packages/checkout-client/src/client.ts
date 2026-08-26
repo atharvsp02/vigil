@@ -11,6 +11,7 @@ import type {
   LogsQuery,
   MetricsQuery,
   MetricsWindow,
+  ReplayBundle,
 } from "./types.js";
 
 export interface CheckoutClientOptions {
@@ -43,6 +44,11 @@ export class CheckoutClient {
 
   async logs(query: LogsQuery = {}): Promise<LogPage> {
     return this.request<LogPage>("GET", `/logs${toSearchParams(query)}`);
+  }
+
+  async replayBundle(samples?: number): Promise<ReplayBundle> {
+    const query = samples === undefined ? {} : { samples };
+    return this.request<ReplayBundle>("GET", `/replay-bundle${toSearchParams(query)}`);
   }
 
   async deploys(): Promise<DeployList> {

@@ -75,3 +75,28 @@ export interface LogsQuery {
   search?: string | undefined;
   limit?: number | undefined;
 }
+
+export interface ReplayCandidate {
+  version: string;
+  variant: string;
+  commitSha: string;
+  commitMessage: string;
+  deployedAt: string;
+  active: boolean;
+}
+
+export interface ReplaySample {
+  ts: string;
+  observedVersion: string;
+  observedStatus: number;
+  request: unknown;
+}
+
+export interface ReplayBundle {
+  generatedAt: string;
+  entryModule: string;
+  modules: Record<string, string>;
+  candidates: ReplayCandidate[];
+  samples: ReplaySample[];
+  harness: string;
+}

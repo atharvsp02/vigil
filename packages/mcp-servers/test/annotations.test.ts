@@ -33,8 +33,17 @@ function capture(register: (server: McpServer, client: CheckoutClient) => void):
 describe("observability tools", () => {
   const tools = capture(registerObservabilityTools);
 
-  it("exposes exactly the two read-only investigation tools", () => {
-    expect(tools.map((tool) => tool.name)).toEqual(["query-metrics", "query-logs"]);
+  it("exposes exactly the read-only investigation tools", () => {
+    expect(tools.map((tool) => tool.name)).toEqual([
+      "query-metrics",
+      "query-logs",
+      "get-replay-bundle",
+    ]);
+  });
+
+  it("keeps the replay bundle read-only even though it feeds code execution", () => {
+    const replay = tools.find((tool) => tool.name === "get-replay-bundle");
+    expect(replay?.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
   });
 
   it("marks every tool read-only and non-destructive", () => {

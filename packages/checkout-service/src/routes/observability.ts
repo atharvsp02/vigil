@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { listDeployRecords, activeDeployRecord } from "../db.js";
+import { buildReplayBundle } from "../replay.js";
 import type { Db } from "../db.js";
 import { computeMetrics, queryLogs } from "../metrics.js";
 import type { Deploy } from "../types.js";
@@ -87,6 +88,23 @@ export function observabilityRouter(db: Db, service: string): Router {
       active: row.active === 1,
     }));
     res.json({ active: deploys.find((deploy) => deploy.active)?.version ?? null, deploys });
+  });
+
+  const replayQuerySchema = z.object({
+    samples: z.coerce.number().int().positive().max(200).default(40),
+  });
+
+  router.get("/replay-bundle", async (req, res, next) => {
+    const parsed = replayQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_query", issues: parsed.error.issues });
+      return;
+    }
+    try {
+      res.json(await buildReplayBundle(db, parsed.data.samples));
+    } catch (error) {
+      next(error);
+    }
   });
 
   router.get("/health", (_req, res) => {

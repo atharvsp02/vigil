@@ -41,6 +41,15 @@ function migrate(db: Db): void {
       attributes TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS request_samples (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ts TEXT NOT NULL,
+      version TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      status_code INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_samples_ts ON request_samples (ts);
     CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs (ts);
     CREATE INDEX IF NOT EXISTS idx_logs_level_ts ON logs (level, ts);
     CREATE INDEX IF NOT EXISTS idx_logs_version_ts ON logs (version, ts);
@@ -102,4 +111,33 @@ export function insertDeployIfAbsent(db: Db, record: DeployRecord): boolean {
     )
     .run(record);
   return result.changes > 0;
+}
+
+export interface RequestSample {
+  id: number;
+  ts: string;
+  version: string;
+  payload: string;
+  status_code: number;
+}
+
+export function recordRequestSample(
+  db: Db,
+  sample: Omit<RequestSample, "id">,
+  retain: number,
+): void {
+  db.prepare(
+    `INSERT INTO request_samples (ts, version, payload, status_code)
+     VALUES (@ts, @version, @payload, @status_code)`,
+  ).run(sample);
+  db.prepare(
+    `DELETE FROM request_samples
+     WHERE id <= (SELECT MAX(id) - ? FROM request_samples)`,
+  ).run(retain);
+}
+
+export function listRequestSamples(db: Db, limit: number): RequestSample[] {
+  return db
+    .prepare(`SELECT * FROM request_samples ORDER BY id DESC LIMIT ?`)
+    .all(limit) as RequestSample[];
 }

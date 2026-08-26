@@ -61,4 +61,29 @@ export function registerObservabilityTools(server: McpServer, client: CheckoutCl
     },
     async (args) => guard(() => client.logs(args)),
   );
+
+  server.registerTool(
+    "get-replay-bundle",
+    {
+      title: "Get the deploy replay bundle for sandboxed bisection",
+      description:
+        "Returns everything needed to prove which deploy introduced a fault, without touching live traffic: the deployed pricing modules as source, the ordered list of candidate versions, a sample of recorded request payloads with their observed outcomes, and a ready-to-run harness script. Write the bundle and harness to files in the sandbox and execute the harness with the bundle path as its only argument. It replays every sample against every candidate version and reports firstBadVersion and lastGoodVersion. Metrics and logs can only show a fault correlates with a deploy; this replay demonstrates which deploy causes it.",
+      inputSchema: {
+        samples: z
+          .number()
+          .int()
+          .positive()
+          .max(200)
+          .optional()
+          .describe("How many recorded requests to replay. Defaults to 40."),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async (args) => guard(() => client.replayBundle(args.samples)),
+  );
 }
