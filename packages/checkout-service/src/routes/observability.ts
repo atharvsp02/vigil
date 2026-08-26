@@ -5,22 +5,39 @@ import type { Db } from "../db.js";
 import { computeMetrics, queryLogs } from "../metrics.js";
 import type { Deploy } from "../types.js";
 
-const WINDOW_PATTERN = /^(\d+)(m|h)$/;
+const WINDOW_PATTERN = /^(\d{1,5})(m|h)$/;
+const MAX_WINDOW_MINUTES = 60 * 24 * 30;
 
-const metricsQuerySchema = z.object({
-  window: z.string().regex(WINDOW_PATTERN).default("30m"),
-  from: z.string().datetime().optional(),
-  to: z.string().datetime().optional(),
-});
+const metricsQuerySchema = z
+  .object({
+    window: z
+      .string()
+      .regex(WINDOW_PATTERN)
+      .refine((value) => windowMinutes(value) <= MAX_WINDOW_MINUTES, {
+        message: `window must not exceed ${MAX_WINDOW_MINUTES} minutes`,
+      })
+      .default("30m"),
+    from: z.string().datetime().optional(),
+    to: z.string().datetime().optional(),
+  })
+  .refine((query) => !query.from || !query.to || query.from <= query.to, {
+    message: "from must not be later than to",
+    path: ["from"],
+  });
 
-const logsQuerySchema = z.object({
-  level: z.enum(["debug", "info", "warn", "error"]).optional(),
-  version: z.string().min(1).optional(),
-  since: z.string().datetime().optional(),
-  until: z.string().datetime().optional(),
-  search: z.string().min(1).optional(),
-  limit: z.coerce.number().int().positive().max(500).default(100),
-});
+const logsQuerySchema = z
+  .object({
+    level: z.enum(["debug", "info", "warn", "error"]).optional(),
+    version: z.string().min(1).max(64).optional(),
+    since: z.string().datetime().optional(),
+    until: z.string().datetime().optional(),
+    search: z.string().min(1).max(200).optional(),
+    limit: z.coerce.number().int().positive().max(500).default(100),
+  })
+  .refine((query) => !query.since || !query.until || query.since <= query.until, {
+    message: "since must not be later than until",
+    path: ["since"],
+  });
 
 export function observabilityRouter(db: Db, service: string): Router {
   const router = Router();
@@ -80,13 +97,20 @@ export function observabilityRouter(db: Db, service: string): Router {
   return router;
 }
 
-function shiftWindow(to: Date, window: string): string {
+function windowMinutes(window: string): number {
   const match = WINDOW_PATTERN.exec(window);
   if (!match) {
-    throw new Error(`Invalid window: ${window}`);
+    return Number.POSITIVE_INFINITY;
   }
   const amount = Number(match[1]);
-  const unit = match[2];
-  const minutes = unit === "h" ? amount * 60 : amount;
-  return new Date(to.getTime() - minutes * 60_000).toISOString();
+  return match[2] === "h" ? amount * 60 : amount;
+}
+
+function shiftWindow(to: Date, window: string): string {
+  const minutes = windowMinutes(window);
+  const shifted = new Date(to.getTime() - minutes * 60_000);
+  if (Number.isNaN(shifted.getTime())) {
+    throw new RangeError(`Window ${window} resolves to an out-of-range date`);
+  }
+  return shifted.toISOString();
 }

@@ -83,7 +83,8 @@ function percentile(rows: Array<{ latency_ms: number }>, fraction: number): numb
   if (rows.length === 0) {
     return null;
   }
-  const index = Math.min(rows.length - 1, Math.floor(fraction * rows.length));
+  const rank = Math.ceil(fraction * rows.length);
+  const index = Math.min(rows.length - 1, Math.max(0, rank - 1));
   return rows[index]?.latency_ms ?? null;
 }
 
@@ -112,7 +113,7 @@ export function queryLogs(db: Db, query: LogQuery): LogRecord[] {
     clauses.push("ts <= @until");
   }
   if (query.search) {
-    clauses.push("message LIKE @searchPattern");
+    clauses.push("message LIKE @searchPattern ESCAPE '\\'");
   }
   const sql = `SELECT * FROM logs WHERE ${clauses.join(" AND ")} ORDER BY ts DESC, id DESC LIMIT @limit`;
   return db.prepare(sql).all({
@@ -121,7 +122,11 @@ export function queryLogs(db: Db, query: LogQuery): LogRecord[] {
     version: query.version ?? null,
     since: query.since ?? null,
     until: query.until ?? null,
-    searchPattern: query.search ? `%${query.search}%` : null,
+    searchPattern: query.search ? `%${escapeLikePattern(query.search)}%` : null,
     limit: query.limit,
   }) as LogRecord[];
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
 }

@@ -93,15 +93,13 @@ export function setActiveDeploy(db: Db, version: string): void {
   activate(version);
 }
 
-export function upsertDeploy(db: Db, record: DeployRecord): void {
-  db.prepare(
-    `INSERT INTO deploys (version, commit_sha, commit_message, author, deployed_at, variant, active)
-     VALUES (@version, @commit_sha, @commit_message, @author, @deployed_at, @variant, @active)
-     ON CONFLICT (version) DO UPDATE SET
-       commit_sha = excluded.commit_sha,
-       commit_message = excluded.commit_message,
-       author = excluded.author,
-       deployed_at = excluded.deployed_at,
-       variant = excluded.variant`,
-  ).run(record);
+export function insertDeployIfAbsent(db: Db, record: DeployRecord): boolean {
+  const result = db
+    .prepare(
+      `INSERT INTO deploys (version, commit_sha, commit_message, author, deployed_at, variant, active)
+       VALUES (@version, @commit_sha, @commit_message, @author, @deployed_at, @variant, @active)
+       ON CONFLICT (version) DO NOTHING`,
+    )
+    .run(record);
+  return result.changes > 0;
 }

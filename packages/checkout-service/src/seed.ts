@@ -1,4 +1,4 @@
-import { upsertDeploy, activeDeployRecord, setActiveDeploy } from "./db.js";
+import { insertDeployIfAbsent, activeDeployRecord, setActiveDeploy } from "./db.js";
 import type { Db } from "./db.js";
 import type { DeployRecord } from "./types.js";
 
@@ -65,7 +65,7 @@ export function seedDeployHistory(db: Db, now: Date = new Date()): void {
       variant: entry.variant,
       active: 0,
     };
-    upsertDeploy(db, record);
+    insertDeployIfAbsent(db, record);
   }
   if (!activeDeployRecord(db)) {
     const latest = HISTORY[HISTORY.length - 1];

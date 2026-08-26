@@ -4,20 +4,25 @@ import { z } from "zod";
 import { activeDeployRecord } from "../db.js";
 import type { Db } from "../db.js";
 import type { Logger } from "../logger.js";
-import { isKnownDiscountCode } from "../pricing.js";
+import {
+  MAX_LINE_ITEMS,
+  MAX_QUANTITY,
+  MAX_UNIT_PRICE_CENTS,
+  isKnownDiscountCode,
+} from "../pricing.js";
 import { resolveVariant } from "../variants.js";
 import type { CheckoutRequest } from "../types.js";
 
 const itemSchema = z.object({
-  sku: z.string().min(1),
-  quantity: z.number().int().positive(),
-  unitPriceCents: z.number().int().nonnegative(),
+  sku: z.string().min(1).max(64),
+  quantity: z.number().int().positive().max(MAX_QUANTITY),
+  unitPriceCents: z.number().int().nonnegative().max(MAX_UNIT_PRICE_CENTS),
 });
 
 const bodySchema = z.object({
-  cartId: z.string().min(1),
-  items: z.array(itemSchema).min(1),
-  discountCode: z.string().min(1).optional(),
+  cartId: z.string().min(1).max(64),
+  items: z.array(itemSchema).min(1).max(MAX_LINE_ITEMS),
+  discountCode: z.string().min(1).max(32).optional(),
   currency: z.string().length(3).default("USD"),
 });
 
@@ -85,6 +90,16 @@ export function checkoutRouter(db: Db, logger: Logger): Router {
     } catch (error) {
       const latencyMs = elapsedMs(startedAt);
       const message = error instanceof Error ? error.message : String(error);
+      if (error instanceof RangeError) {
+        logger.warn(active.version, `checkout rejected: ${message}`, {
+          requestId,
+          statusCode: 400,
+          latencyMs,
+          attributes: { cartId: request.cartId },
+        });
+        res.status(400).json({ error: "cart_total_out_of_range", requestId });
+        return;
+      }
       logger.error(active.version, `checkout failed during payment authorization: ${message}`, {
         requestId,
         statusCode: 500,

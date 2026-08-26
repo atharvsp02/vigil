@@ -6,8 +6,17 @@ const DISCOUNT_RATES: Record<string, number> = {
   WELCOME5: 0.05,
 };
 
+export const MAX_LINE_ITEMS = 100;
+export const MAX_QUANTITY = 10_000;
+export const MAX_UNIT_PRICE_CENTS = 100_000_000;
+export const MAX_SUBTOTAL_CENTS = 1_000_000_000_000;
+
 export function subtotalCents(items: CheckoutItem[]): number {
-  return items.reduce((total, item) => total + item.unitPriceCents * item.quantity, 0);
+  const total = items.reduce((sum, item) => sum + item.unitPriceCents * item.quantity, 0);
+  if (!Number.isSafeInteger(total) || total > MAX_SUBTOTAL_CENTS) {
+    throw new RangeError(`Cart subtotal exceeds the maximum supported value of ${MAX_SUBTOTAL_CENTS}`);
+  }
+  return total;
 }
 
 export function discountRate(code: string): number {
