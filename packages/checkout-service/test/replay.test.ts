@@ -67,6 +67,14 @@ describe("replay bundle", () => {
     ]);
   });
 
+  it("carries a runner and explicit instructions so the agent need not improvise", async () => {
+    const bundle = await buildReplayBundle(db, 10);
+    expect(bundle.runner).toContain("nodejs.org");
+    expect(bundle.runner).toContain("tar.gz");
+    expect(bundle.runner).not.toContain("tar.xz");
+    expect(bundle.howToRun).toContain("python3 runner.py bundle.json");
+  });
+
   it("respects the sample limit", async () => {
     for (let i = 0; i < 12; i += 1) {
       sample(i % 2 === 0 ? "SAVE10" : undefined, i % 2 === 0 ? 500 : 200);

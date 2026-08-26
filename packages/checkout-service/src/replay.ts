@@ -27,6 +27,8 @@ export interface ReplayBundle {
   candidates: ReplayCandidate[];
   samples: ReplaySample[];
   harness: string;
+  runner: string;
+  howToRun: string;
 }
 
 const MODULE_FILES = ["pricing.js", "variants.js"] as const;
@@ -59,6 +61,8 @@ export async function buildReplayBundle(db: Db, sampleLimit: number): Promise<Re
     candidates,
     samples,
     harness: HARNESS_SOURCE,
+    runner: RUNNER_SOURCE,
+    howToRun: HOW_TO_RUN,
   };
 }
 
@@ -85,6 +89,52 @@ async function readDeployedModules(): Promise<Record<string, string>> {
 function stripSourceMapComment(source: string): string {
   return source.replace(/\n?\/\/# sourceMappingURL=.*$/g, "\n");
 }
+
+const HOW_TO_RUN = [
+  "Write this bundle's JSON to bundle.json.",
+  "Write the runner field to runner.py.",
+  "Run: python3 runner.py bundle.json",
+  "The runner provisions Node if absent, writes the deployed modules, executes the",
+  "replay and prints one JSON object with results, firstBadVersion and lastGoodVersion.",
+].join(" ");
+
+const RUNNER_SOURCE = `import json, os, shutil, subprocess, sys, tarfile, urllib.request
+
+NODE_VERSION = "v22.11.0"
+NODE_DIR = "node-" + NODE_VERSION + "-linux-x64"
+NODE_TGZ = "https://nodejs.org/dist/" + NODE_VERSION + "/" + NODE_DIR + ".tar.gz"
+
+def node_binary():
+    found = shutil.which("node")
+    if found:
+        return found
+    local = os.path.join(os.getcwd(), NODE_DIR, "bin", "node")
+    if os.path.exists(local):
+        return local
+    urllib.request.urlretrieve(NODE_TGZ, "node.tar.gz")
+    with tarfile.open("node.tar.gz", "r:gz") as archive:
+        archive.extractall(".")
+    return local
+
+def main():
+    bundle_path = sys.argv[1]
+    with open(bundle_path) as handle:
+        bundle = json.load(handle)
+    with open("harness.mjs", "w") as handle:
+        handle.write(bundle["harness"])
+    node = node_binary()
+    result = subprocess.run(
+        [node, "harness.mjs", bundle_path],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(json.dumps({"error": "replay failed", "stderr": result.stderr[-2000:]}))
+        sys.exit(1)
+    print(result.stdout)
+
+main()
+`;
 
 const HARNESS_SOURCE = `import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 

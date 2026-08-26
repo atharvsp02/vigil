@@ -99,4 +99,6 @@ export interface ReplayBundle {
   candidates: ReplayCandidate[];
   samples: ReplaySample[];
   harness: string;
+  runner: string;
+  howToRun: string;
 }

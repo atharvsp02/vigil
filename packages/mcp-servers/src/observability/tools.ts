@@ -67,7 +67,7 @@ export function registerObservabilityTools(server: McpServer, client: CheckoutCl
     {
       title: "Get the deploy replay bundle for sandboxed bisection",
       description:
-        "Returns everything needed to prove which deploy introduced a fault, without touching live traffic: the deployed pricing modules as source, the ordered list of candidate versions, a sample of recorded request payloads with their observed outcomes, and a ready-to-run harness script. Write the bundle and harness to files in the sandbox and execute the harness with the bundle path as its only argument. It replays every sample against every candidate version and reports firstBadVersion and lastGoodVersion. Metrics and logs can only show a fault correlates with a deploy; this replay demonstrates which deploy causes it.",
+        "Returns everything needed to prove which deploy introduced a fault, without touching live traffic: the deployed pricing modules as source, the ordered list of candidate versions, a sample of recorded request payloads with their observed outcomes, and a runner that executes the replay. To use it: write the whole bundle JSON to bundle.json, write the runner field verbatim to runner.py, then run `python3 runner.py bundle.json`. The runner provisions its own Node if the sandbox lacks one, so do not substitute your own implementation of the replay. It prints one JSON object containing per-version results, firstBadVersion and lastGoodVersion. Metrics and logs can only show that a fault correlates with a deploy; this replay demonstrates which deploy causes it.",
       inputSchema: {
         samples: z
           .number()
