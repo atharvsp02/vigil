@@ -5,8 +5,13 @@ import { registerObservabilityTools } from "./tools.js";
 
 const config = loadRuntimeConfig({ PORT: "4101" });
 
+if (!config.CHECKOUT_REPLAY_TOKEN) {
+  throw new Error("CHECKOUT_REPLAY_TOKEN is required: replay bundles contain retained requests");
+}
+
 const client = new CheckoutClient({
   baseUrl: config.CHECKOUT_BASE_URL,
+  replayToken: config.CHECKOUT_REPLAY_TOKEN,
   timeoutMs: config.REQUEST_TIMEOUT_MS,
 });
 

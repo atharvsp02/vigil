@@ -5,6 +5,7 @@ const schema = z.object({
   SERVICE_NAME: z.string().min(1).default("checkout"),
   DATABASE_PATH: z.string().min(1).default("./data/checkout.sqlite"),
   ADMIN_TOKEN: z.string().min(8),
+  REPLAY_TOKEN: z.string().min(16),
   LOG_RETENTION_HOURS: z.coerce.number().int().positive().default(24),
 });
 

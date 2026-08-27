@@ -7,6 +7,7 @@ import type { Db } from "../src/db.js";
 import { seedDeployHistory } from "../src/seed.js";
 
 const ADMIN_TOKEN = "test-admin-token";
+const REPLAY_TOKEN = "test-replay-token";
 
 let db: Db;
 let server: Server;
@@ -20,6 +21,7 @@ beforeEach(async () => {
     db,
     serviceName: "checkout",
     adminToken: ADMIN_TOKEN,
+    replayToken: REPLAY_TOKEN,
     selfBaseUrl: () => `http://127.0.0.1:${port}`,
     echoLogsToStdout: false,
   });
@@ -87,6 +89,22 @@ describe("POST /checkout on the faulty active deploy", () => {
     const response = await post("/checkout", { cartId: "x", items: [] });
     expect(response.status).toBe(400);
   });
+
+  it("preserves a successful checkout when sampling fails", async () => {
+    db.exec("DROP TABLE request_samples");
+    const response = await post("/checkout", plainCart);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ payableCents: 2000 });
+  });
+
+  it("preserves a pricing failure when sampling fails", async () => {
+    db.exec("DROP TABLE request_samples");
+    const response = await post("/checkout", discountCart);
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "payment_authorization_failed",
+    });
+  });
 });
 
 describe("admin deploy activation", () => {
@@ -152,5 +170,18 @@ describe("observability endpoints", () => {
   it("reports health with the active version", async () => {
     const health = await fetch(`${baseUrl}/health`).then((r) => r.json());
     expect(health).toMatchObject({ status: "ok", activeVersion: "v1.4.0" });
+  });
+
+  it("protects replay bundles with a separate token", async () => {
+    const missing = await fetch(`${baseUrl}/replay-bundle`);
+    const wrong = await fetch(`${baseUrl}/replay-bundle`, {
+      headers: { "x-replay-token": "wrong-replay-token" },
+    });
+    const authorized = await fetch(`${baseUrl}/replay-bundle`, {
+      headers: { "x-replay-token": REPLAY_TOKEN },
+    });
+    expect(missing.status).toBe(401);
+    expect(wrong.status).toBe(401);
+    expect(authorized.status).toBe(200);
   });
 });

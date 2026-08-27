@@ -32,16 +32,20 @@ export function checkoutRouter(db: Db, logger: Logger): Router {
   const router = Router();
 
   const sample = (version: string, request: CheckoutRequest, statusCode: number): void => {
-    recordRequestSample(
-      db,
-      {
-        ts: new Date().toISOString(),
-        version,
-        payload: JSON.stringify(request),
-        status_code: statusCode,
-      },
-      SAMPLE_RETENTION,
-    );
+    try {
+      recordRequestSample(
+        db,
+        {
+          ts: new Date().toISOString(),
+          version,
+          payload: JSON.stringify(request),
+          status_code: statusCode,
+        },
+        SAMPLE_RETENTION,
+      );
+    } catch {
+      return;
+    }
   };
 
   router.post("/checkout", (req, res) => {

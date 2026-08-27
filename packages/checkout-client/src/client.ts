@@ -17,6 +17,7 @@ import type {
 export interface CheckoutClientOptions {
   baseUrl: string;
   adminToken?: string | undefined;
+  replayToken?: string | undefined;
   timeoutMs?: number | undefined;
   fetchImpl?: typeof fetch | undefined;
 }
@@ -24,12 +25,14 @@ export interface CheckoutClientOptions {
 export class CheckoutClient {
   private readonly baseUrl: string;
   private readonly adminToken: string | undefined;
+  private readonly replayToken: string | undefined;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: CheckoutClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.adminToken = options.adminToken;
+    this.replayToken = options.replayToken;
     this.timeoutMs = options.timeoutMs ?? 5000;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -47,8 +50,13 @@ export class CheckoutClient {
   }
 
   async replayBundle(samples?: number): Promise<ReplayBundle> {
+    if (!this.replayToken) {
+      throw new Error("replayBundle requires a replayToken");
+    }
     const query = samples === undefined ? {} : { samples };
-    return this.request<ReplayBundle>("GET", `/replay-bundle${toSearchParams(query)}`);
+    return this.request<ReplayBundle>("GET", `/replay-bundle${toSearchParams(query)}`, {
+      "x-replay-token": this.replayToken,
+    });
   }
 
   async deploys(): Promise<DeployList> {

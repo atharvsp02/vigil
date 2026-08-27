@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { listDeployRecords, activeDeployRecord } from "../db.js";
 import { buildReplayBundle } from "../replay.js";
@@ -40,7 +41,7 @@ const logsQuerySchema = z
     path: ["since"],
   });
 
-export function observabilityRouter(db: Db, service: string): Router {
+export function observabilityRouter(db: Db, service: string, replayToken: string): Router {
   const router = Router();
 
   router.get("/metrics", (req, res) => {
@@ -95,6 +96,11 @@ export function observabilityRouter(db: Db, service: string): Router {
   });
 
   router.get("/replay-bundle", async (req, res, next) => {
+    const provided = req.header("x-replay-token");
+    if (!provided || !constantTimeEqual(provided, replayToken)) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
     const parsed = replayQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       res.status(400).json({ error: "invalid_query", issues: parsed.error.issues });
@@ -131,4 +137,13 @@ function shiftWindow(to: Date, window: string): string {
     throw new RangeError(`Window ${window} resolves to an out-of-range date`);
   }
   return shifted.toISOString();
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.length !== right.length) {
+    return false;
+  }
+  return timingSafeEqual(left, right);
 }

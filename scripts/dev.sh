@@ -25,6 +25,7 @@ ensure_secret() {
 
 ensure_secret ADMIN_TOKEN
 ensure_secret MCP_BEARER_TOKEN
+ensure_secret REPLAY_TOKEN
 
 set -a
 # shellcheck disable=SC1090
@@ -70,12 +71,14 @@ done
 echo "starting services"
 
 ADMIN_TOKEN="$ADMIN_TOKEN" \
+REPLAY_TOKEN="$REPLAY_TOKEN" \
 PORT="$CHECKOUT_PORT" \
 DATABASE_PATH="${DATABASE_PATH:-$ROOT/.dev-logs/checkout.sqlite}" \
   nohup setsid node packages/checkout-service/dist/index.js \
   > "$LOG_DIR/checkout.log" 2>&1 < /dev/null &
 
 CHECKOUT_BASE_URL="http://127.0.0.1:$CHECKOUT_PORT" \
+CHECKOUT_REPLAY_TOKEN="$REPLAY_TOKEN" \
 PORT="$OBSERVABILITY_PORT" \
 MCP_BEARER_TOKEN="$MCP_BEARER_TOKEN" \
   nohup setsid node packages/mcp-servers/dist/observability/index.js \

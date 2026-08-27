@@ -72,7 +72,7 @@ describe("replay bundle", () => {
     expect(bundle.runner).toContain("nodejs.org");
     expect(bundle.runner).toContain("tar.gz");
     expect(bundle.runner).not.toContain("tar.xz");
-    expect(bundle.howToRun).toContain("python3 runner.py bundle.json");
+    expect(bundle.howToRun).toContain("python3 runner.py BUNDLE");
   });
 
   it("respects the sample limit", async () => {
@@ -101,6 +101,7 @@ describe("bisection harness", () => {
   });
 
   async function bisect(): Promise<{
+    status: "complete" | "inconclusive_no_samples";
     results: Array<{ version: string; failed: number; errorRate: number }>;
     firstBadVersion: string | null;
     lastGoodVersion: string | null;
@@ -120,6 +121,7 @@ describe("bisection harness", () => {
       sample(undefined, 200);
     }
     const report = await bisect();
+    expect(report.status).toBe("complete");
     expect(report.firstBadVersion).toBe("v1.4.0");
     expect(report.lastGoodVersion).toBe("v1.3.0");
   });
@@ -140,6 +142,14 @@ describe("bisection harness", () => {
     const report = await bisect();
     expect(report.firstBadVersion).toBeNull();
     expect(report.results.every((r) => r.failed === 0)).toBe(true);
+  });
+
+  it("is inconclusive when no requests were replayed", async () => {
+    const report = await bisect();
+    expect(report.status).toBe("inconclusive_no_samples");
+    expect(report.firstBadVersion).toBeNull();
+    expect(report.lastGoodVersion).toBeNull();
+    expect(report.results.every((result) => result.failed === 0)).toBe(true);
   });
 
   it("reports the failure signature alongside the culprit", async () => {

@@ -12,6 +12,7 @@ const app = createApp({
   db,
   serviceName: config.SERVICE_NAME,
   adminToken: config.ADMIN_TOKEN,
+  replayToken: config.REPLAY_TOKEN,
   selfBaseUrl: () => `http://127.0.0.1:${boundPort}`,
 });
 

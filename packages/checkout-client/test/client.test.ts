@@ -13,11 +13,16 @@ function jsonResponse(payload: unknown, status = 200): Response {
   });
 }
 
-function clientWith(impl: typeof fetch, adminToken?: string): CheckoutClient {
+function clientWith(
+  impl: typeof fetch,
+  adminToken?: string,
+  replayToken?: string,
+): CheckoutClient {
   return new CheckoutClient({
     baseUrl: "http://checkout.test/",
     fetchImpl: impl,
     ...(adminToken ? { adminToken } : {}),
+    ...(replayToken ? { replayToken } : {}),
   });
 }
 
@@ -67,6 +72,25 @@ describe("privilege separation", () => {
     const headersOnWrite = (spy.mock.calls[1]?.[1] as RequestInit).headers;
     expect(headersOnRead).toEqual({});
     expect(headersOnWrite).toEqual({ "x-admin-token": "secret-token" });
+  });
+
+  it("refuses to request a replay bundle without a replay token", async () => {
+    const spy = vi.fn(async () => jsonResponse({}));
+    await expect(clientWith(spy as unknown as typeof fetch).replayBundle()).rejects.toThrow(
+      /requires a replayToken/,
+    );
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("sends the replay token only on the replay call", async () => {
+    const spy = vi.fn(async () => jsonResponse({}));
+    const client = clientWith(spy as unknown as typeof fetch, undefined, "replay-secret");
+    await client.metrics();
+    await client.replayBundle(20);
+    const headersOnMetrics = (spy.mock.calls[0]?.[1] as RequestInit).headers;
+    const headersOnReplay = (spy.mock.calls[1]?.[1] as RequestInit).headers;
+    expect(headersOnMetrics).toEqual({});
+    expect(headersOnReplay).toEqual({ "x-replay-token": "replay-secret" });
   });
 });
 

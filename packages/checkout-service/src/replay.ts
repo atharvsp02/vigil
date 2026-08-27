@@ -99,7 +99,7 @@ const HOW_TO_RUN = [
   "python3 runner.py BUNDLE",
   "The runner provisions Node if the sandbox has none, then replays every recorded",
   "request against every candidate version and prints one JSON object with results,",
-  "firstBadVersion and lastGoodVersion. Do not write your own replay implementation:",
+  "status, firstBadVersion and lastGoodVersion. Do not write your own replay implementation:",
   "a replay you wrote yourself tests your paraphrase, not the deployed code.",
 ].join(" ")
 
@@ -187,10 +187,11 @@ for (const result of results) {
   if (result.failed > 0 && firstBad === null) {
     firstBad = result.version;
   }
-  if (result.failed === 0 && firstBad === null) {
+  if (result.replayed > 0 && result.failed === 0 && firstBad === null) {
     lastGood = result.version;
   }
 }
 
-console.log(JSON.stringify({ results, firstBadVersion: firstBad, lastGoodVersion: lastGood }, null, 2));
+const status = bundle.samples.length === 0 ? "inconclusive_no_samples" : "complete";
+console.log(JSON.stringify({ status, results, firstBadVersion: firstBad, lastGoodVersion: lastGood }, null, 2));
 `;

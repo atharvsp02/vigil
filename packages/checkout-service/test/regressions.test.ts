@@ -9,6 +9,7 @@ import { seedDeployHistory } from "../src/seed.js";
 import { subtotalCents, MAX_SUBTOTAL_CENTS } from "../src/pricing.js";
 
 const ADMIN_TOKEN = "test-admin-token";
+const REPLAY_TOKEN = "test-replay-token";
 
 let db: Db;
 let server: Server;
@@ -22,6 +23,7 @@ beforeEach(async () => {
     db,
     serviceName: "checkout",
     adminToken: ADMIN_TOKEN,
+    replayToken: REPLAY_TOKEN,
     selfBaseUrl: () => `http://127.0.0.1:${port}`,
     echoLogsToStdout: false,
   });
