@@ -1,7 +1,8 @@
-import express from "express";
 import { timingSafeEqual } from "node:crypto";
 import type { Server } from "node:http";
+import type { ErrorRequestHandler } from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
@@ -30,15 +31,23 @@ export async function startMcpHttpServer(
       `${options.name} holds write credentials and refuses to start without MCP_BEARER_TOKEN`,
     );
   }
-  const app = express();
+  const app = createMcpExpressApp({ host: options.host });
   app.disable("x-powered-by");
-  app.use(express.json({ limit: "1mb" }));
 
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", server: options.name, version: options.version });
   });
 
   app.post("/mcp", (req, res, next) => {
+    const origin = req.header("origin");
+    if (origin && !isAllowedOrigin(origin, options.host)) {
+      res.status(403).json({
+        jsonrpc: "2.0",
+        error: { code: -32000, message: "Invalid Origin" },
+        id: null,
+      });
+      return;
+    }
     if (!options.bearerToken) {
       next();
       return;
@@ -56,29 +65,53 @@ export async function startMcpHttpServer(
     next();
   });
 
-  app.post("/mcp", async (req, res) => {
+  app.post("/mcp", async (req, res, next) => {
     const server = new McpServer(
       { name: options.name, version: options.version },
       { instructions: options.instructions },
     );
-    options.registerTools(server);
-
     const transport = new StreamableHTTPServerTransport({
       enableJsonResponse: true,
     });
+    let closed = false;
+    const closeResources = async (): Promise<void> => {
+      if (closed) {
+        return;
+      }
+      closed = true;
+      await Promise.allSettled([transport.close(), server.close()]);
+    };
 
     res.on("close", () => {
-      void transport.close();
-      void server.close();
+      void closeResources();
     });
 
-    await server.connect(transport as unknown as Transport);
-    await transport.handleRequest(req, res, req.body);
+    try {
+      options.registerTools(server);
+      await server.connect(transport as unknown as Transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (error) {
+      await closeResources();
+      next(error);
+    }
   });
 
   app.use((_req, res) => {
     res.status(404).json({ error: "not_found" });
   });
+
+  const errorHandler: ErrorRequestHandler = (error, _req, res, next) => {
+    if (res.headersSent) {
+      next(error);
+      return;
+    }
+    res.status(500).json({
+      jsonrpc: "2.0",
+      error: { code: -32603, message: "Internal error" },
+      id: null,
+    });
+  };
+  app.use(errorHandler);
 
   const httpServer = await new Promise<Server>((resolve, reject) => {
     const started = app.listen(options.port, options.host, () => resolve(started));
@@ -105,4 +138,33 @@ function constantTimeEqual(a: string, b: string): boolean {
     return false;
   }
   return timingSafeEqual(left, right);
+}
+
+export function isAllowedOrigin(value: string, host: string): boolean {
+  try {
+    const origin = new URL(value);
+    if (origin.protocol !== "http:" && origin.protocol !== "https:") {
+      return false;
+    }
+    const normalizedHost = normalizeHostname(host);
+    const normalizedOriginHost = normalizeHostname(origin.hostname);
+    if (!normalizedHost || !normalizedOriginHost) {
+      return false;
+    }
+    if (["127.0.0.1", "localhost", "[::1]"].includes(normalizedHost)) {
+      return ["127.0.0.1", "localhost", "[::1]"].includes(normalizedOriginHost);
+    }
+    return normalizedOriginHost === normalizedHost;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeHostname(value: string): string | undefined {
+  const authority = value.includes(":") && !value.startsWith("[") ? `[${value}]` : value;
+  try {
+    return new URL(`http://${authority}`).hostname;
+  } catch {
+    return undefined;
+  }
 }

@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CheckoutClient } from "@vigil/checkout-client";
+import type { ZodTypeAny } from "zod";
 import { registerObservabilityTools } from "../src/observability/tools.js";
 import { registerDeployTools } from "../src/deploys/tools.js";
 
 interface CapturedTool {
   name: string;
   annotations: Record<string, unknown> | undefined;
+  inputSchema: Record<string, ZodTypeAny>;
   required: string[];
 }
 
@@ -14,13 +16,14 @@ function capture(register: (server: McpServer, client: CheckoutClient) => void):
   const captured: CapturedTool[] = [];
   const server = {
     registerTool(name: string, config: Record<string, unknown>) {
-      const input = (config["inputSchema"] ?? {}) as Record<string, { isOptional?: () => boolean }>;
+      const input = (config["inputSchema"] ?? {}) as Record<string, ZodTypeAny>;
       const required = Object.entries(input)
         .filter(([, schema]) => typeof schema?.isOptional === "function" && !schema.isOptional())
         .map(([key]) => key);
       captured.push({
         name,
         annotations: config["annotations"] as Record<string, unknown> | undefined,
+        inputSchema: input,
         required,
       });
       return {};
@@ -81,5 +84,14 @@ describe("deploy tools", () => {
 
   it("forces the agent to supply a target version and written evidence", () => {
     expect(rollback?.required.sort()).toEqual(["reason", "version"]);
+  });
+
+  it("rejects blank rollback evidence and normalizes valid evidence", () => {
+    const reason = rollback?.inputSchema["reason"];
+    expect(reason?.safeParse(" ".repeat(20))).toMatchObject({ success: false });
+    expect(reason?.safeParse("  v1.4.0 failed and v1.3.0 passed replay  ")).toMatchObject({
+      success: true,
+      data: "v1.4.0 failed and v1.3.0 passed replay",
+    });
   });
 });
