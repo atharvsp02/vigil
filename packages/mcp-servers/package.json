@@ -9,7 +9,9 @@
     "start:deploys": "node dist/deploys/index.js",
     "dev:observability": "tsx watch src/observability/index.ts",
     "dev:deploys": "tsx watch src/deploys/index.ts",
+    "pretypecheck": "pnpm --filter @vigil/checkout-client build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "pnpm --filter @vigil/checkout-client build",
     "test": "vitest run"
   },
   "dependencies": {

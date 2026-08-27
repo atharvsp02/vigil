@@ -30,10 +30,12 @@ export function registerDeployTools(server: McpServer, client: CheckoutClient): 
       inputSchema: {
         version: z
           .string()
+          .trim()
           .min(1)
           .describe("The known-good version to activate, exactly as reported by list-deploys."),
         reason: z
           .string()
+          .trim()
           .min(20)
           .describe(
             "The evidence justifying this rollback: the failing version, the observed error rate, and why this target is believed good. Shown to the human reviewing the request.",
