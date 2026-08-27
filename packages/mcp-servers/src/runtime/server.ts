@@ -140,17 +140,31 @@ function constantTimeEqual(a: string, b: string): boolean {
   return timingSafeEqual(left, right);
 }
 
-function isAllowedOrigin(value: string, host: string): boolean {
+export function isAllowedOrigin(value: string, host: string): boolean {
   try {
     const origin = new URL(value);
     if (origin.protocol !== "http:" && origin.protocol !== "https:") {
       return false;
     }
-    if (["127.0.0.1", "localhost", "::1"].includes(host)) {
-      return ["127.0.0.1", "localhost", "[::1]"].includes(origin.hostname);
+    const normalizedHost = normalizeHostname(host);
+    const normalizedOriginHost = normalizeHostname(origin.hostname);
+    if (!normalizedHost || !normalizedOriginHost) {
+      return false;
     }
-    return origin.hostname === host;
+    if (["127.0.0.1", "localhost", "[::1]"].includes(normalizedHost)) {
+      return ["127.0.0.1", "localhost", "[::1]"].includes(normalizedOriginHost);
+    }
+    return normalizedOriginHost === normalizedHost;
   } catch {
     return false;
+  }
+}
+
+function normalizeHostname(value: string): string | undefined {
+  const authority = value.includes(":") && !value.startsWith("[") ? `[${value}]` : value;
+  try {
+    return new URL(`http://${authority}`).hostname;
+  } catch {
+    return undefined;
   }
 }

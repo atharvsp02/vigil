@@ -7,7 +7,7 @@ import {
 } from "@vigil/checkout-client";
 import { loadRuntimeConfig, isLoopbackHost } from "../src/runtime/config.js";
 import { guard } from "../src/runtime/results.js";
-import { startMcpHttpServer } from "../src/runtime/server.js";
+import { isAllowedOrigin, startMcpHttpServer } from "../src/runtime/server.js";
 
 const BASE = { CHECKOUT_BASE_URL: "http://127.0.0.1:4000", PORT: "4101" };
 
@@ -162,6 +162,16 @@ describe("credentialed server startup", () => {
     } finally {
       await server.close();
     }
+  });
+});
+
+describe("origin validation", () => {
+  it("accepts equivalent case-variant DNS hosts", () => {
+    expect(isAllowedOrigin("https://example.com:8443", "EXAMPLE.COM")).toBe(true);
+  });
+
+  it("accepts equivalent IPv6 hosts", () => {
+    expect(isAllowedOrigin("https://[2001:db8::1]:8443", "2001:db8::1")).toBe(true);
   });
 });
 
