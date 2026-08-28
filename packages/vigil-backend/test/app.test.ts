@@ -52,6 +52,8 @@ const checkout: CheckoutGateway = {
   generateLoad: async () => ({ requests: 10, succeeded: 7, failed: 3 }),
 };
 
+const API_TOKEN = "test-token-with-enough-length";
+
 let server: Server;
 let baseUrl: string;
 let store: IncidentStore;
@@ -69,6 +71,7 @@ beforeEach(async () => {
     }),
     checkout,
     dashboardOrigins: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    apiToken: API_TOKEN,
   });
   server = await new Promise<Server>((resolve) => {
     const started = app.listen(0, () => resolve(started));
@@ -80,10 +83,10 @@ afterEach(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
-function post(path: string, body: unknown): Promise<Response> {
+function post(path: string, body: unknown, token: string = API_TOKEN): Promise<Response> {
   return fetch(`${baseUrl}${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   });
 }
@@ -171,6 +174,22 @@ describe("vigil backend routes", () => {
     });
     expect(response.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:3000");
     controller.abort();
+  });
+
+  it("refuses privileged calls without a valid token", async () => {
+    const anonymous = await fetch(`${baseUrl}/api/fault`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(anonymous.status).toBe(401);
+    expect((await post("/api/investigations", {}, "wrong-token")).status).toBe(401);
+    expect((await post("/api/approvals", { decision: "allow" }, "")).status).toBe(401);
+  });
+
+  it("keeps read-only routes open to the dashboard", async () => {
+    expect((await fetch(`${baseUrl}/api/state`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/api/service/deploys`)).status).toBe(200);
   });
 
   it("answers unknown routes with a not found body", async () => {

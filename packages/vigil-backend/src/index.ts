@@ -31,11 +31,17 @@ const app = createApp({
   investigation,
   checkout,
   dashboardOrigins: dashboardOrigins(config),
+  apiToken: config.VIGIL_API_TOKEN,
 });
 
-const server = app.listen(config.PORT, () => {
+const server = app.listen(config.PORT, config.HOST, () => {
   process.stdout.write(
-    `${JSON.stringify({ event: "listening", service: "vigil-backend", port: config.PORT })}\n`,
+    `${JSON.stringify({
+      event: "listening",
+      service: "vigil-backend",
+      host: config.HOST,
+      port: config.PORT,
+    })}\n`,
   );
 });
 

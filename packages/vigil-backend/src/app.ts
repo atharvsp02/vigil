@@ -1,4 +1,5 @@
 import express from "express";
+import { timingSafeEqual } from "node:crypto";
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import type {
@@ -48,6 +49,7 @@ export interface AppOptions {
   investigation: Investigation;
   checkout: CheckoutGateway;
   dashboardOrigins: string[];
+  apiToken: string;
 }
 
 export function createApp(options: AppOptions): Express {
@@ -57,6 +59,7 @@ export function createApp(options: AppOptions): Express {
   app.use(cors(options.dashboardOrigins));
 
   const limiter = rateLimiter({ windowMs: 60_000, max: 20 });
+  const authorize = bearerAuth(options.apiToken);
 
   app.get("/health", (_req, res) => {
     res.json({ status: "ok", incident: options.store.get().status });
@@ -70,7 +73,7 @@ export function createApp(options: AppOptions): Express {
     streamSnapshots(req, res, options.store);
   });
 
-  app.post("/api/investigations", limiter, async (req, res) => {
+  app.post("/api/investigations", limiter, authorize, async (req, res) => {
     const parsed = alertSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       res.status(400).json({ error: "invalid_request", issues: parsed.error.issues });
@@ -84,7 +87,7 @@ export function createApp(options: AppOptions): Express {
     }
   });
 
-  app.post("/api/approvals", limiter, async (req, res) => {
+  app.post("/api/approvals", limiter, authorize, async (req, res) => {
     const parsed = decisionSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       res.status(400).json({ error: "invalid_request", issues: parsed.error.issues });
@@ -101,7 +104,7 @@ export function createApp(options: AppOptions): Express {
     }
   });
 
-  app.post("/api/fault", limiter, async (req, res) => {
+  app.post("/api/fault", limiter, authorize, async (req, res) => {
     const parsed = faultSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       res.status(400).json({ error: "invalid_request", issues: parsed.error.issues });
@@ -190,6 +193,18 @@ export function allowFor(
     return origin;
   }
   return allowed[0] ?? "null";
+}
+
+export function bearerAuth(token: string) {
+  const expected = Buffer.from(`Bearer ${token}`);
+  return (req: Request, res: Response, next: () => void): void => {
+    const provided = Buffer.from(req.header("authorization") ?? "");
+    if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
+    next();
+  };
 }
 
 export function rateLimiter(options: { windowMs: number; max: number }) {

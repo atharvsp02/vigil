@@ -2,6 +2,8 @@ import { z } from "zod";
 
 const schema = z.object({
   PORT: z.coerce.number().int().positive().default(4200),
+  HOST: z.string().min(1).default("127.0.0.1"),
+  VIGIL_API_TOKEN: z.string().min(16),
   HARNESS_BASE_URL: z.string().url().default("http://127.0.0.1:8790"),
   HARNESS_MODEL: z.string().min(1).default("google-gemini/gemini-3-5-flash-lite"),
   CHECKOUT_BASE_URL: z.string().url().default("http://127.0.0.1:4000"),
