@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -14,6 +15,7 @@ DEPLOYS_PORT="${DEPLOYS_PORT:-4102}"
 HARNESS_PORT="${HARNESS_PORT:-8790}"
 
 touch "$ENV_FILE"
+chmod 600 "$ENV_FILE"
 
 ensure_secret() {
   local key="$1"
