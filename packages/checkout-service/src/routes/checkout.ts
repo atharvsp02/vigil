@@ -11,6 +11,7 @@ import {
   isKnownDiscountCode,
 } from "../pricing.js";
 import { resolveVariant } from "../variants.js";
+import type { PricedCheckout } from "../variants.js";
 import type { CheckoutRequest } from "../types.js";
 
 const itemSchema = z.object({
@@ -85,28 +86,9 @@ export function checkoutRouter(db: Db, logger: Logger): Router {
       return;
     }
 
+    let priced: PricedCheckout;
     try {
-      const priced = resolveVariant(active.variant)(request);
-      const latencyMs = elapsedMs(startedAt);
-      logger.info(active.version, "checkout authorized", {
-        requestId,
-        statusCode: 200,
-        latencyMs,
-        attributes: {
-          cartId: request.cartId,
-          discountApplied: Boolean(request.discountCode),
-          payableCents: priced.payableCents,
-        },
-      });
-      sample(active.version, request, 200);
-      res.status(200).json({
-        orderId: randomUUID(),
-        subtotalCents: priced.subtotalCents,
-        discountCents: priced.discountCents,
-        payableCents: priced.payableCents,
-        currency: request.currency,
-        authorizedAt: new Date().toISOString(),
-      });
+      priced = resolveVariant(active.variant)(request);
     } catch (error) {
       const latencyMs = elapsedMs(startedAt);
       const message = error instanceof Error ? error.message : String(error);
@@ -132,7 +114,29 @@ export function checkoutRouter(db: Db, logger: Logger): Router {
       });
       sample(active.version, request, 500);
       res.status(500).json({ error: "payment_authorization_failed", requestId });
+      return;
     }
+
+    const latencyMs = elapsedMs(startedAt);
+    logger.info(active.version, "checkout authorized", {
+      requestId,
+      statusCode: 200,
+      latencyMs,
+      attributes: {
+        cartId: request.cartId,
+        discountApplied: Boolean(request.discountCode),
+        payableCents: priced.payableCents,
+      },
+    });
+    sample(active.version, request, 200);
+    res.status(200).json({
+      orderId: randomUUID(),
+      subtotalCents: priced.subtotalCents,
+      discountCents: priced.discountCents,
+      payableCents: priced.payableCents,
+      currency: request.currency,
+      authorizedAt: new Date().toISOString(),
+    });
   });
 
   return router;
