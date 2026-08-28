@@ -93,7 +93,7 @@ MCP_BEARER_TOKEN="$MCP_BEARER_TOKEN" \
   nohup setsid node packages/mcp-servers/dist/deploys/index.js \
   > "$LOG_DIR/mcp-deploys.log" 2>&1 < /dev/null &
 
-nohup setsid npx -y @truefoundry/trueforge --port "$HARNESS_PORT" \
+nohup setsid pnpm exec trueforge --port "$HARNESS_PORT" \
   > "$LOG_DIR/trueforge.log" 2>&1 < /dev/null &
 
 wait_for "http://127.0.0.1:$CHECKOUT_PORT/health" "checkout service"
