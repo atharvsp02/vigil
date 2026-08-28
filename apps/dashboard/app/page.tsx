@@ -5,7 +5,7 @@ import { ApprovalCard } from "@/components/ApprovalCard";
 import { ServiceHealth } from "@/components/ServiceHealth";
 import { StatusPill } from "@/components/StatusPill";
 import { Timeline } from "@/components/Timeline";
-import { BACKEND_URL, decide, fetchDeploys, fetchMetrics, startInvestigation, triggerFault } from "@/lib/api";
+import { API_BASE, decide, fetchDeploys, fetchMetrics, startInvestigation, triggerFault } from "@/lib/api";
 import type { DeployList, IncidentSnapshot, MetricsWindow } from "@/lib/types";
 
 const EMPTY: IncidentSnapshot = {
@@ -33,7 +33,7 @@ export default function Page() {
   const timelineRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const source = new EventSource(`${BACKEND_URL}/api/stream`);
+    const source = new EventSource(`${API_BASE}/stream`);
     source.onopen = () => setConnected(true);
     source.onerror = () => setConnected(false);
     source.onmessage = (event) => {

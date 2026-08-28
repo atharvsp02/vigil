@@ -1,10 +1,9 @@
 import type { DeployList, MetricsWindow } from "./types";
 
-export const BACKEND_URL =
-  process.env.NEXT_PUBLIC_VIGIL_BACKEND_URL ?? "http://127.0.0.1:4200";
+export const API_BASE = "/api/vigil";
 
 async function send<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${BACKEND_URL}${path}`, {
+  const response = await fetch(`${API_BASE}${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -17,29 +16,29 @@ async function send<T>(path: string, body: unknown): Promise<T> {
 }
 
 export function triggerFault(): Promise<{ load: { failed: number; requests: number } }> {
-  return send("/api/fault", { version: "v1.4.0", requests: 200 });
+  return send("/fault", { version: "v1.4.0", requests: 200 });
 }
 
 export function startInvestigation(): Promise<{ incidentId: string }> {
-  return send("/api/investigations", {});
+  return send("/investigations", {});
 }
 
 export function decide(decision: "allow" | "deny", reason?: string): Promise<unknown> {
-  return send("/api/approvals", reason ? { decision, reason } : { decision });
+  return send("/approvals", reason ? { decision, reason } : { decision });
 }
 
-export async function fetchMetrics(): Promise<MetricsWindow> {
-  const response = await fetch(`${BACKEND_URL}/api/service/metrics?window=30m`);
+async function read<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`);
   if (!response.ok) {
-    throw new Error(`metrics failed with ${response.status}`);
+    throw new Error(`${path} failed with ${response.status}`);
   }
-  return (await response.json()) as MetricsWindow;
+  return (await response.json()) as T;
 }
 
-export async function fetchDeploys(): Promise<DeployList> {
-  const response = await fetch(`${BACKEND_URL}/api/service/deploys`);
-  if (!response.ok) {
-    throw new Error(`deploys failed with ${response.status}`);
-  }
-  return (await response.json()) as DeployList;
+export function fetchMetrics(): Promise<MetricsWindow> {
+  return read<MetricsWindow>("/service/metrics?window=30m");
+}
+
+export function fetchDeploys(): Promise<DeployList> {
+  return read<DeployList>("/service/deploys");
 }
