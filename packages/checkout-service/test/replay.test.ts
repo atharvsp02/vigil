@@ -76,6 +76,8 @@ describe("replay bundle", () => {
       "4f862bab52039835efbe613b532238b6e4dde98d139a34e6923193e073438b13",
     );
     expect(bundle.runner).toContain('filter="data"');
+    expect(bundle.runner).toContain('hasattr(tarfile, "data_filter")');
+    expect(bundle.runner).toContain("refusing to extract outside the working directory");
     expect(bundle.runner).toContain("TemporaryDirectory");
     expect(bundle.howToRun).toContain("python3 runner.py BUNDLE");
   });

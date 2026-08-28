@@ -126,8 +126,21 @@ def node_binary(workdir):
     if not hmac.compare_digest(digest.hexdigest(), NODE_SHA256):
         raise RuntimeError("downloaded Node archive failed SHA-256 verification")
     with tarfile.open(archive_path, "r:gz") as archive:
-        archive.extractall(workdir, filter="data")
+        if hasattr(tarfile, "data_filter"):
+            archive.extractall(workdir, filter="data")
+        else:
+            extract_safely(archive, workdir)
     return local
+
+def extract_safely(archive, workdir):
+    root = os.path.realpath(workdir)
+    for member in archive.getmembers():
+        if not (member.isfile() or member.isdir()):
+            continue
+        target = os.path.realpath(os.path.join(root, member.name))
+        if target != root and not target.startswith(root + os.sep):
+            raise RuntimeError("refusing to extract outside the working directory: " + member.name)
+        archive.extract(member, root)
 
 def main():
     bundle_path = os.path.abspath(sys.argv[1])
