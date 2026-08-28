@@ -27,9 +27,7 @@ export async function startMcpHttpServer(
   options: McpHttpServerOptions,
 ): Promise<RunningMcpServer> {
   if (options.requireAuth && !options.bearerToken) {
-    throw new Error(
-      `${options.name} holds write credentials and refuses to start without MCP_BEARER_TOKEN`,
-    );
+    throw new Error(`${options.name} refuses to start without MCP_BEARER_TOKEN`);
   }
   const app = createMcpExpressApp({ host: options.host });
   app.disable("x-powered-by");

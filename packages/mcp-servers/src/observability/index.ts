@@ -23,6 +23,7 @@ const server = await startMcpHttpServer({
   port: config.PORT,
   host: config.HOST,
   bearerToken: config.MCP_BEARER_TOKEN,
+  requireAuth: true,
   registerTools: (mcp) => registerObservabilityTools(mcp, client),
 });
 
