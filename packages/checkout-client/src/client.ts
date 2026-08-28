@@ -7,6 +7,8 @@ import type {
   ActivationResult,
   DeployList,
   HealthStatus,
+  LoadOptions,
+  LoadResult,
   LogPage,
   LogsQuery,
   MetricsQuery,
@@ -74,17 +76,31 @@ export class CheckoutClient {
     );
   }
 
+  async generateLoad(options: LoadOptions = {}): Promise<LoadResult> {
+    if (!this.adminToken) {
+      throw new Error("generateLoad requires an adminToken");
+    }
+    return this.request<LoadResult>(
+      "POST",
+      "/admin/load",
+      { "x-admin-token": this.adminToken },
+      options,
+    );
+  }
+
   private async request<T>(
     method: string,
     path: string,
     headers: Record<string, string> = {},
+    body?: unknown,
   ): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
         method,
-        headers,
+        headers: body === undefined ? headers : { ...headers, "content-type": "application/json" },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         signal: controller.signal,
       });
       const text = await response.text();
