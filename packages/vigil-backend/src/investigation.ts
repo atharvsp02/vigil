@@ -62,6 +62,8 @@ export class Investigation {
   private sawTurnDone = false;
   private retries = 0;
   private nudges = 0;
+  private busy = false;
+  private turnTimedOut = false;
 
   constructor(options: InvestigationOptions) {
     this.options = options;
@@ -69,7 +71,7 @@ export class Investigation {
 
   async start(alert: string): Promise<string> {
     const snapshot = this.options.store.get();
-    if (snapshot.status === "investigating" || snapshot.status === "executing") {
+    if (this.busy || snapshot.status === "investigating" || snapshot.status === "executing") {
       throw new InvestigationConflictError("an investigation is already running");
     }
     if (snapshot.status === "awaiting_approval") {
@@ -132,6 +134,15 @@ export class Investigation {
   }
 
   private async execute(sessionId: string, input: unknown[]): Promise<void> {
+    this.busy = true;
+    try {
+      await this.executeTurns(sessionId, input);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async executeTurns(sessionId: string, input: unknown[]): Promise<void> {
     let nextInput = input;
     for (;;) {
       const failure = await this.runTurn(sessionId, nextInput);
@@ -174,7 +185,11 @@ export class Investigation {
 
   private async runTurn(sessionId: string, input: unknown[]): Promise<string | null> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.options.timeoutMs);
+    this.turnTimedOut = false;
+    const timer = setTimeout(() => {
+      this.turnTimedOut = true;
+      controller.abort();
+    }, this.options.timeoutMs);
     timer.unref?.();
     this.turnFailure = null;
     this.turnIncomplete = false;
@@ -189,7 +204,9 @@ export class Investigation {
       }
       return this.turnFailure;
     } catch (error) {
-      return describeError(error);
+      return this.turnTimedOut
+        ? `the turn timeout of ${this.options.timeoutMs}ms elapsed before the harness finished`
+        : describeError(error);
     } finally {
       clearTimeout(timer);
     }

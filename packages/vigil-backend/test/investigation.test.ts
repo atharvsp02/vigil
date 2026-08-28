@@ -418,6 +418,73 @@ describe("Investigation", () => {
     await expect(investigation.start("another alert")).rejects.toThrow(/waiting for your approval/);
   });
 
+  it("refuses a new investigation while a denied turn is still finishing", async () => {
+    let release = (): void => undefined;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const store = new IncidentStore();
+    let turn = 0;
+    const investigation = new Investigation({
+      client: {
+        createSession: async () => "session-1",
+        streamTurn: async function* () {
+          turn += 1;
+          if (turn === 1) {
+            for (const event of rollbackProposal()) {
+              yield event;
+            }
+            return;
+          }
+          await blocked;
+        },
+      },
+      store,
+      spec: SPEC,
+      gatedTool: "rollback-deploy",
+      timeoutMs: 5000,
+      maxRetries: 0,
+      retryDelayMs: 0,
+      maxNudges: 0,
+    });
+    await investigation.start("alert");
+    await investigation.waitForIdle();
+    await investigation.decide("deny", "not now");
+    expect(store.get().status).toBe("denied");
+    await expect(investigation.start("another alert")).rejects.toThrow(/already running/);
+    release();
+    await investigation.waitForIdle();
+  });
+
+  it("treats a turn timeout as retryable", async () => {
+    const store = new IncidentStore();
+    let attempts = 0;
+    const investigation = new Investigation({
+      client: {
+        createSession: async () => "session-1",
+        streamTurn: async function* (_sessionId, _input, signal) {
+          attempts += 1;
+          await new Promise<void>((_resolve, reject) => {
+            signal?.addEventListener("abort", () => reject(new Error("This operation was aborted")));
+          });
+        },
+      },
+      store,
+      spec: SPEC,
+      gatedTool: "rollback-deploy",
+      timeoutMs: 20,
+      maxRetries: 1,
+      retryDelayMs: 0,
+      maxNudges: 0,
+    });
+    await investigation.start("alert");
+    await investigation.waitForIdle();
+
+    expect(attempts).toBe(2);
+    expect(store.get().status).toBe("failed");
+    expect(store.get().error).toContain("timeout");
+  });
+
   it("rejects a decision when nothing is pending", async () => {
     const { investigation } = build([]);
     await expect(investigation.decide("allow")).rejects.toThrow(/no action is waiting/);
