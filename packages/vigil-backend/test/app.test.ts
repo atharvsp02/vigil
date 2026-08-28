@@ -68,7 +68,7 @@ beforeEach(async () => {
       timeoutMs: 5000,
     }),
     checkout,
-    dashboardOrigin: "http://localhost:3000",
+    dashboardOrigins: ["http://localhost:3000", "http://127.0.0.1:3000"],
   });
   server = await new Promise<Server>((resolve) => {
     const started = app.listen(0, () => resolve(started));
@@ -150,6 +150,27 @@ describe("vigil backend routes", () => {
     const preflight = await fetch(`${baseUrl}/api/state`, { method: "OPTIONS" });
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("access-control-allow-origin")).toBe("http://localhost:3000");
+  });
+
+  it("echoes any configured dashboard origin back to the browser", async () => {
+    const allowed = await fetch(`${baseUrl}/api/state`, {
+      headers: { origin: "http://127.0.0.1:3000" },
+    });
+    expect(allowed.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:3000");
+    const stranger = await fetch(`${baseUrl}/api/state`, {
+      headers: { origin: "http://evil.example" },
+    });
+    expect(stranger.headers.get("access-control-allow-origin")).toBe("http://localhost:3000");
+  });
+
+  it("keeps cors headers on the event stream", async () => {
+    const controller = new AbortController();
+    const response = await fetch(`${baseUrl}/api/stream`, {
+      headers: { origin: "http://127.0.0.1:3000" },
+      signal: controller.signal,
+    });
+    expect(response.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:3000");
+    controller.abort();
   });
 
   it("answers unknown routes with a not found body", async () => {

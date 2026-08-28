@@ -1,7 +1,7 @@
 import { CheckoutClient } from "@vigil/checkout-client";
 import { buildAgentSpec } from "./agent.js";
 import { createApp } from "./app.js";
-import { loadConfig } from "./config.js";
+import { dashboardOrigins, loadConfig } from "./config.js";
 import { HarnessClient } from "./harness.js";
 import { IncidentStore } from "./incident.js";
 import { Investigation } from "./investigation.js";
@@ -30,7 +30,7 @@ const app = createApp({
   store,
   investigation,
   checkout,
-  dashboardOrigin: config.DASHBOARD_ORIGIN,
+  dashboardOrigins: dashboardOrigins(config),
 });
 
 const server = app.listen(config.PORT, () => {

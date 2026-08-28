@@ -47,14 +47,14 @@ export interface AppOptions {
   store: IncidentStore;
   investigation: Investigation;
   checkout: CheckoutGateway;
-  dashboardOrigin: string;
+  dashboardOrigins: string[];
 }
 
 export function createApp(options: AppOptions): Express {
   const app = express();
   app.disable("x-powered-by");
   app.use(express.json({ limit: "64kb" }));
-  app.use(cors(options.dashboardOrigin));
+  app.use(cors(options.dashboardOrigins));
 
   const limiter = rateLimiter({ windowMs: 60_000, max: 20 });
 
@@ -165,9 +165,11 @@ function streamSnapshots(req: Request, res: Response, store: IncidentStore): voi
   });
 }
 
-function cors(origin: string) {
+function cors(allowed: string[]) {
+  const permitted = new Set(allowed);
   return (req: Request, res: Response, next: () => void): void => {
-    res.setHeader("access-control-allow-origin", origin);
+    const origin = req.header("origin");
+    res.setHeader("access-control-allow-origin", allowFor(origin, permitted, allowed));
     res.setHeader("access-control-allow-headers", "content-type");
     res.setHeader("access-control-allow-methods", "GET,POST,OPTIONS");
     res.setHeader("vary", "origin");
@@ -177,6 +179,17 @@ function cors(origin: string) {
     }
     next();
   };
+}
+
+export function allowFor(
+  origin: string | undefined,
+  permitted: Set<string>,
+  allowed: string[],
+): string {
+  if (origin && permitted.has(origin)) {
+    return origin;
+  }
+  return allowed[0] ?? "null";
 }
 
 export function rateLimiter(options: { windowMs: number; max: number }) {
