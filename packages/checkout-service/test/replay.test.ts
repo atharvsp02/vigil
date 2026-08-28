@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
@@ -72,6 +72,11 @@ describe("replay bundle", () => {
     expect(bundle.runner).toContain("nodejs.org");
     expect(bundle.runner).toContain("tar.gz");
     expect(bundle.runner).not.toContain("tar.xz");
+    expect(bundle.runner).toContain(
+      "4f862bab52039835efbe613b532238b6e4dde98d139a34e6923193e073438b13",
+    );
+    expect(bundle.runner).toContain('filter="data"');
+    expect(bundle.runner).toContain("TemporaryDirectory");
     expect(bundle.howToRun).toContain("python3 runner.py BUNDLE");
   });
 
@@ -150,6 +155,16 @@ describe("bisection harness", () => {
     expect(report.firstBadVersion).toBeNull();
     expect(report.lastGoodVersion).toBeNull();
     expect(report.results.every((result) => result.failed === 0)).toBe(true);
+  });
+
+  it("runs without overwriting files in the caller's directory", async () => {
+    const bundle = await buildReplayBundle(db, 40);
+    await writeFile(join(workdir, "bundle.json"), JSON.stringify(bundle));
+    await writeFile(join(workdir, "runner.py"), bundle.runner);
+    await writeFile(join(workdir, "harness.mjs"), "keep");
+    const { stdout } = await run("python3", ["runner.py", "bundle.json"], { cwd: workdir });
+    expect(JSON.parse(stdout)).toMatchObject({ status: "inconclusive_no_samples" });
+    await expect(readFile(join(workdir, "harness.mjs"), "utf8")).resolves.toBe("keep");
   });
 
   it("reports the failure signature alongside the culprit", async () => {

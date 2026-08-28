@@ -103,36 +103,47 @@ const HOW_TO_RUN = [
   "a replay you wrote yourself tests your paraphrase, not the deployed code.",
 ].join(" ")
 
-const RUNNER_SOURCE = `import json, os, shutil, subprocess, sys, tarfile, urllib.request
+const RUNNER_SOURCE = `import hashlib, hmac, json, os, shutil, subprocess, sys, tarfile, tempfile, urllib.request
 
 NODE_VERSION = "v22.11.0"
 NODE_DIR = "node-" + NODE_VERSION + "-linux-x64"
 NODE_TGZ = "https://nodejs.org/dist/" + NODE_VERSION + "/" + NODE_DIR + ".tar.gz"
+NODE_SHA256 = "4f862bab52039835efbe613b532238b6e4dde98d139a34e6923193e073438b13"
 
-def node_binary():
+def node_binary(workdir):
     found = shutil.which("node")
     if found:
         return found
-    local = os.path.join(os.getcwd(), NODE_DIR, "bin", "node")
+    local = os.path.join(workdir, NODE_DIR, "bin", "node")
     if os.path.exists(local):
         return local
-    urllib.request.urlretrieve(NODE_TGZ, "node.tar.gz")
-    with tarfile.open("node.tar.gz", "r:gz") as archive:
-        archive.extractall(".")
+    archive_path = os.path.join(workdir, "node.tar.gz")
+    urllib.request.urlretrieve(NODE_TGZ, archive_path)
+    digest = hashlib.sha256()
+    with open(archive_path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if not hmac.compare_digest(digest.hexdigest(), NODE_SHA256):
+        raise RuntimeError("downloaded Node archive failed SHA-256 verification")
+    with tarfile.open(archive_path, "r:gz") as archive:
+        archive.extractall(workdir, filter="data")
     return local
 
 def main():
-    bundle_path = sys.argv[1]
+    bundle_path = os.path.abspath(sys.argv[1])
     with open(bundle_path) as handle:
         bundle = json.load(handle)
-    with open("harness.mjs", "w") as handle:
-        handle.write(bundle["harness"])
-    node = node_binary()
-    result = subprocess.run(
-        [node, "harness.mjs", bundle_path],
-        capture_output=True,
-        text=True,
-    )
+    with tempfile.TemporaryDirectory(prefix="vigil-replay-") as workdir:
+        harness_path = os.path.join(workdir, "harness.mjs")
+        with open(harness_path, "x") as handle:
+            handle.write(bundle["harness"])
+        node = node_binary(workdir)
+        result = subprocess.run(
+            [node, harness_path, bundle_path],
+            capture_output=True,
+            text=True,
+            cwd=workdir,
+        )
     if result.returncode != 0:
         print(json.dumps({"error": "replay failed", "stderr": result.stderr[-2000:]}))
         sys.exit(1)
