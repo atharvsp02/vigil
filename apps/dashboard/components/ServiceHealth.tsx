@@ -27,7 +27,11 @@ export function ServiceHealth({ metrics, deploys }: ServiceHealthProps) {
           value={deploys?.active ?? "-"}
           tone={deploys?.active === "v1.4.0" ? "bad" : "good"}
         />
-        <Stat label="p95 latency" value={metrics ? `${metrics.latencyP95Ms} ms` : "-"} tone="flat" />
+        <Stat
+          label="p95 latency"
+          value={metrics?.latencyP95Ms === null || metrics === null ? "-" : `${metrics.latencyP95Ms} ms`}
+          tone="flat"
+        />
       </div>
 
       {metrics && metrics.byVersion.length > 0 ? (

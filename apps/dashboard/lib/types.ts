@@ -81,8 +81,8 @@ export interface MetricsWindow {
   requestCount: number;
   errorCount: number;
   errorRate: number;
-  latencyP50Ms: number;
-  latencyP95Ms: number;
+  latencyP50Ms: number | null;
+  latencyP95Ms: number | null;
   byVersion: VersionMetrics[];
 }
 
