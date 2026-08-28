@@ -31,6 +31,7 @@ ensure_secret() {
 ensure_secret ADMIN_TOKEN
 ensure_secret MCP_BEARER_TOKEN
 ensure_secret REPLAY_TOKEN
+ensure_secret VIGIL_API_TOKEN
 
 set -a
 # shellcheck disable=SC1090
@@ -100,6 +101,8 @@ nohup setsid pnpm exec trueforge --port "$HARNESS_PORT" \
   > "$LOG_DIR/trueforge.log" 2>&1 < /dev/null &
 
 PORT="$BACKEND_PORT" \
+HOST="127.0.0.1" \
+VIGIL_API_TOKEN="$VIGIL_API_TOKEN" \
 HARNESS_BASE_URL="http://127.0.0.1:$HARNESS_PORT" \
 HARNESS_MODEL="$HARNESS_MODEL" \
 CHECKOUT_BASE_URL="http://127.0.0.1:$CHECKOUT_PORT" \
@@ -114,6 +117,11 @@ wait_for "http://127.0.0.1:$DEPLOYS_PORT/health" "mcp deploys"
 wait_for "http://127.0.0.1:$HARNESS_PORT/" "trueforge harness" 60
 wait_for "http://127.0.0.1:$BACKEND_PORT/health" "vigil backend"
 
+DASHBOARD_ENV="$ROOT/apps/dashboard/.env.local"
+printf 'VIGIL_BACKEND_URL=http://127.0.0.1:%s\nVIGIL_API_TOKEN=%s\n' \
+  "$BACKEND_PORT" "$VIGIL_API_TOKEN" > "$DASHBOARD_ENV"
+chmod 600 "$DASHBOARD_ENV"
+
 echo
 echo "checkout service    http://127.0.0.1:$CHECKOUT_PORT"
 echo "mcp observability   http://127.0.0.1:$OBSERVABILITY_PORT/mcp"
@@ -121,3 +129,5 @@ echo "mcp deploys         http://127.0.0.1:$DEPLOYS_PORT/mcp"
 echo "trueforge harness   http://127.0.0.1:$HARNESS_PORT"
 echo "vigil backend       http://127.0.0.1:$BACKEND_PORT"
 echo "logs                $LOG_DIR"
+echo
+echo "start the dashboard with: pnpm --filter @vigil/dashboard dev"
