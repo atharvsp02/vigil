@@ -79,6 +79,7 @@ function build(script: HarnessEvent[][]): { store: IncidentStore; investigation:
     timeoutMs: 5000,
     maxRetries: 2,
     retryDelayMs: 0,
+    maxNudges: 1,
   });
   return { store, investigation, gateway };
 }
@@ -298,6 +299,47 @@ describe("Investigation", () => {
     await investigation.waitForIdle();
 
     expect(store.get().summary).toBe("partial thought");
+  });
+
+  it("nudges the agent when a turn ends without proposing the rollback", async () => {
+    const done: HarnessEvent[] = [
+      { type: "turn.done", id: "d1", thread_id: null, state: { status: "done", required_actions: [] } },
+    ];
+    const { store, investigation, gateway } = build([done, [...done]]);
+    await investigation.start("alert");
+    await investigation.waitForIdle();
+
+    expect(gateway.inputs).toHaveLength(2);
+    expect(gateway.inputs[1]).toEqual([
+      { type: "user.message", content: expect.stringContaining("You stopped before finishing") },
+    ]);
+    expect(store.get().status).toBe("failed");
+    expect(
+      store.get().timeline.some((entry) => entry.title.startsWith("Asking Vigil to finish")),
+    ).toBe(true);
+  });
+
+  it("does not nudge once the rollback has run", async () => {
+    const { store, investigation, gateway } = build([
+      rollbackProposal(),
+      [
+        {
+          type: "tool.response",
+          id: "r1",
+          thread_id: "main",
+          tool_call_id: "call-1",
+          content: JSON.stringify({ changed: true }),
+        },
+        { type: "turn.done", id: "d2", thread_id: null, state: { status: "done", required_actions: [] } },
+      ],
+    ]);
+    await investigation.start("alert");
+    await investigation.waitForIdle();
+    await investigation.decide("allow");
+    await investigation.waitForIdle();
+
+    expect(gateway.inputs).toHaveLength(2);
+    expect(store.get().status).toBe("resolved");
   });
 
   it("resumes the investigation after a transient failure clears", async () => {

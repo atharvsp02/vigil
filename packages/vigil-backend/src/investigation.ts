@@ -30,6 +30,7 @@ export interface InvestigationOptions {
   timeoutMs: number;
   maxRetries?: number;
   retryDelayMs?: number;
+  maxNudges?: number;
 }
 
 const RETRYABLE_PATTERN =
@@ -39,6 +40,9 @@ const MAX_BACKOFF_MS = 60_000;
 
 const RESUME_PROMPT =
   "The previous step failed with a transient model API error. Continue the investigation from where you left off, reusing the evidence you already gathered.";
+
+const NUDGE_PROMPT =
+  "You stopped before finishing. Do not answer with analysis alone. Either run the sandboxed replay and then call rollback-deploy with the version it proved good, or state plainly that the replay was inconclusive and why. Continue now.";
 
 export class InvestigationConflictError extends Error {
   constructor(message: string) {
@@ -54,7 +58,10 @@ export class Investigation {
   private running: Promise<void> | null = null;
   private rollbackExecuted = false;
   private turnFailure: string | null = null;
+  private turnIncomplete = false;
+  private sawTurnDone = false;
   private retries = 0;
+  private nudges = 0;
 
   constructor(options: InvestigationOptions) {
     this.options = options;
@@ -72,6 +79,7 @@ export class Investigation {
     this.pending.clear();
     this.rollbackExecuted = false;
     this.retries = 0;
+    this.nudges = 0;
     const incidentId = this.options.store.start(alert);
     let sessionId: string;
     try {
@@ -128,7 +136,23 @@ export class Investigation {
     for (;;) {
       const failure = await this.runTurn(sessionId, nextInput);
       if (failure === null) {
-        return;
+        if (!this.turnIncomplete) {
+          return;
+        }
+        const maxNudges = this.options.maxNudges ?? 2;
+        if (this.nudges >= maxNudges) {
+          this.settleIncompleteTurn();
+          return;
+        }
+        this.nudges += 1;
+        this.options.store.append({
+          kind: "status",
+          threadId: "main",
+          title: `Asking Vigil to finish the required steps (${this.nudges} of ${maxNudges})`,
+          detail: "The turn ended before the replay proved a culprit or the rollback was proposed",
+        });
+        nextInput = [{ type: "user.message", content: NUDGE_PROMPT }];
+        continue;
       }
       const maxRetries = this.options.maxRetries ?? 4;
       if (this.retries >= maxRetries || !RETRYABLE_PATTERN.test(failure)) {
@@ -153,9 +177,15 @@ export class Investigation {
     const timer = setTimeout(() => controller.abort(), this.options.timeoutMs);
     timer.unref?.();
     this.turnFailure = null;
+    this.turnIncomplete = false;
+    this.sawTurnDone = false;
     try {
       for await (const event of this.options.client.streamTurn(sessionId, input, controller.signal)) {
         this.handle(event);
+      }
+      if (!this.sawTurnDone && this.turnFailure === null) {
+        this.flushAll();
+        this.turnIncomplete = true;
       }
       return this.turnFailure;
     } catch (error) {
@@ -187,7 +217,8 @@ export class Investigation {
       case "tool.response":
         if (event.tool_call_id) {
           const content = typeof event.content === "string" ? event.content : "";
-          const succeeded = looksLikeJson(content);
+          const tracked = this.calls.get(event.tool_call_id);
+          const succeeded = tracked?.serverName === undefined || looksLikeJson(content);
           store.updateByToolCallId(event.tool_call_id, {
             state: succeeded ? "ok" : "error",
             result: content,
@@ -335,6 +366,7 @@ export class Investigation {
   private handleTurnDone(event: HarnessEvent): void {
     const store = this.options.store;
     const state = event.state;
+    this.sawTurnDone = true;
     if (state?.status === "error") {
       this.turnFailure = state.message ?? state.error ?? "the harness ended the turn with an error";
       return;
@@ -354,15 +386,22 @@ export class Investigation {
       store.setStatus("denied");
       return;
     }
-    store.setStatus(this.rollbackExecuted ? "resolved" : "failed");
-    if (!this.rollbackExecuted && !snapshot.error) {
-      store.append({
-        kind: "status",
-        threadId: "main",
-        title: "Investigation ended without a rollback",
-        detail: "Vigil finished the turn without executing the approval-gated rollback",
-      });
+    if (this.rollbackExecuted) {
+      store.setStatus("resolved");
+      return;
     }
+    this.turnIncomplete = true;
+  }
+
+  private settleIncompleteTurn(): void {
+    const store = this.options.store;
+    store.append({
+      kind: "status",
+      threadId: "main",
+      title: "Investigation ended without a rollback",
+      detail: "Vigil finished without executing the approval-gated rollback",
+    });
+    store.setStatus("failed");
   }
 
   private observeRollback(toolCallId: string): void {
