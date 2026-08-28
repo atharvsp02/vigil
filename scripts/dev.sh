@@ -67,7 +67,7 @@ wait_for() {
 }
 
 echo "building workspace"
-pnpm -s build >/dev/null
+pnpm -s --filter "./packages/*" build >/dev/null
 
 for port in "$CHECKOUT_PORT" "$OBSERVABILITY_PORT" "$DEPLOYS_PORT" "$HARNESS_PORT" "$BACKEND_PORT"; do
   stop_port "$port"
