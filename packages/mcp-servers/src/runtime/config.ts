@@ -9,6 +9,7 @@ const schema = z
     CHECKOUT_BASE_URL: z.string().url(),
     MCP_BEARER_TOKEN: z.string().min(16).optional(),
     CHECKOUT_ADMIN_TOKEN: z.string().min(8).optional(),
+    CHECKOUT_REPLAY_TOKEN: z.string().min(16).optional(),
     REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
   })
   .refine((config) => LOOPBACK_HOSTS.has(config.HOST) || config.MCP_BEARER_TOKEN, {

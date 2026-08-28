@@ -15,6 +15,7 @@
     "lint": "pnpm -r lint"
   },
   "devDependencies": {
+    "@truefoundry/trueforge": "0.1.4",
     "typescript": "^5.7.2"
   }
 }

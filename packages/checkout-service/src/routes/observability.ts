@@ -1,6 +1,8 @@
 import { Router } from "express";
+import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { listDeployRecords, activeDeployRecord } from "../db.js";
+import { buildReplayBundle } from "../replay.js";
 import type { Db } from "../db.js";
 import { computeMetrics, queryLogs } from "../metrics.js";
 import type { Deploy } from "../types.js";
@@ -39,7 +41,7 @@ const logsQuerySchema = z
     path: ["since"],
   });
 
-export function observabilityRouter(db: Db, service: string): Router {
+export function observabilityRouter(db: Db, service: string, replayToken: string): Router {
   const router = Router();
 
   router.get("/metrics", (req, res) => {
@@ -89,6 +91,28 @@ export function observabilityRouter(db: Db, service: string): Router {
     res.json({ active: deploys.find((deploy) => deploy.active)?.version ?? null, deploys });
   });
 
+  const replayQuerySchema = z.object({
+    samples: z.coerce.number().int().positive().max(200).default(40),
+  });
+
+  router.get("/replay-bundle", async (req, res, next) => {
+    const provided = req.header("x-replay-token");
+    if (!provided || !constantTimeEqual(provided, replayToken)) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
+    const parsed = replayQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_query", issues: parsed.error.issues });
+      return;
+    }
+    try {
+      res.json(await buildReplayBundle(db, parsed.data.samples));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get("/health", (_req, res) => {
     const active = activeDeployRecord(db);
     res.json({ status: "ok", service, activeVersion: active?.version ?? null });
@@ -113,4 +137,13 @@ function shiftWindow(to: Date, window: string): string {
     throw new RangeError(`Window ${window} resolves to an out-of-range date`);
   }
   return shifted.toISOString();
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.length !== right.length) {
+    return false;
+  }
+  return timingSafeEqual(left, right);
 }
