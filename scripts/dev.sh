@@ -23,10 +23,19 @@ chmod 600 "$ENV_FILE"
 ensure_secret() {
   local key="$1"
   local bytes="${2:-24}"
-  if ! grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
-    printf '%s=%s\n' "$key" "$(openssl rand -hex "$bytes")" >> "$ENV_FILE"
-    echo "generated $key into .env"
+  local current
+  current="$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2-)"
+  if [ -n "$current" ]; then
+    return
   fi
+  local value tmp
+  value="$(openssl rand -hex "$bytes")"
+  tmp="$(mktemp)"
+  grep -vE "^${key}=" "$ENV_FILE" > "$tmp" 2>/dev/null || true
+  printf '%s=%s\n' "$key" "$value" >> "$tmp"
+  cat "$tmp" > "$ENV_FILE"
+  rm -f "$tmp"
+  echo "generated $key into .env"
 }
 
 ensure_secret ADMIN_TOKEN

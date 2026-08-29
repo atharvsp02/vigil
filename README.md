@@ -64,6 +64,7 @@ The service under investigation is a real Express and SQLite checkout API with f
 
 - Node.js 22 or newer
 - pnpm
+- A POSIX shell environment with `bash`, `curl`, `openssl`, `setsid` and `ss`, which `scripts/dev.sh` uses to generate secrets, start each process and free busy ports. On Debian or Ubuntu these come from `coreutils`, `curl`, `openssl`, `util-linux` and `iproute2`.
 - python3, used by the replay runner inside the sandbox
 - A Google AI Studio API key for Gemini, on the free tier
 - Optionally a Daytona API key for a hosted sandbox. TrueForge reports a local sandbox fallback when no provider is configured.
@@ -127,10 +128,13 @@ scripts/dev.sh            One command that starts and wires the whole stack
 ## Development
 
 ```bash
-pnpm test        # 144 tests across the workspace
+pnpm lint        # eslint across the workspace
 pnpm typecheck   # strict TypeScript, every package
+pnpm test        # 144 tests across the workspace
 pnpm build
 ```
+
+GitHub Actions runs all four on every pull request.
 
 ## Safety and secrets
 
