@@ -2,10 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApprovalCard } from "@/components/ApprovalCard";
+import { OperatorLock } from "@/components/OperatorLock";
 import { ServiceHealth } from "@/components/ServiceHealth";
 import { StatusPill } from "@/components/StatusPill";
 import { Timeline } from "@/components/Timeline";
-import { API_BASE, decide, fetchDeploys, fetchMetrics, startInvestigation, triggerFault } from "@/lib/api";
+import {
+  API_BASE,
+  decide,
+  fetchDeploys,
+  fetchMetrics,
+  readPasscode,
+  startInvestigation,
+  storePasscode,
+  triggerFault,
+} from "@/lib/api";
 import type { DeployList, IncidentSnapshot, MetricsWindow } from "@/lib/types";
 
 const EMPTY: IncidentSnapshot = {
@@ -30,7 +40,12 @@ export default function Page() {
   const [deploys, setDeploys] = useState<DeployList | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [unlocked, setUnlocked] = useState(false);
   const timelineRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setUnlocked(readPasscode().length > 0);
+  }, []);
 
   useEffect(() => {
     const source = new EventSource(`${API_BASE}/stream`);
@@ -66,6 +81,7 @@ export default function Page() {
       refreshService();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
+      setUnlocked(readPasscode().length > 0);
     } finally {
       setBusy(null);
     }
@@ -124,12 +140,22 @@ export default function Page() {
         </section>
 
         <div className="space-y-6">
+          {unlocked ? null : (
+            <OperatorLock
+              onUnlock={(passcode) => {
+                storePasscode(passcode);
+                setUnlocked(true);
+                setError(null);
+              }}
+            />
+          )}
+
           <section className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
             <h2 className="text-sm font-semibold tracking-tight text-slate-200">Demo controls</h2>
             <div className="mt-4 space-y-2">
               <button
                 type="button"
-                disabled={busy !== null}
+                disabled={busy !== null || !unlocked}
                 onClick={() => run("fault", triggerFault)}
                 className="w-full rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-sm font-medium text-rose-200 transition hover:bg-rose-500/20 disabled:opacity-50"
               >
@@ -137,7 +163,7 @@ export default function Page() {
               </button>
               <button
                 type="button"
-                disabled={busy !== null || running || snapshot.status === "awaiting_approval"}
+                disabled={busy !== null || !unlocked || running || snapshot.status === "awaiting_approval"}
                 onClick={() => run("investigate", startInvestigation)}
                 className="w-full rounded-lg bg-sky-500 px-4 py-2.5 text-sm font-semibold text-sky-950 transition hover:bg-sky-400 disabled:opacity-50"
               >

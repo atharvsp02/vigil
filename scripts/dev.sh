@@ -22,8 +22,9 @@ chmod 600 "$ENV_FILE"
 
 ensure_secret() {
   local key="$1"
+  local bytes="${2:-24}"
   if ! grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
-    printf '%s=%s\n' "$key" "$(openssl rand -hex 24)" >> "$ENV_FILE"
+    printf '%s=%s\n' "$key" "$(openssl rand -hex "$bytes")" >> "$ENV_FILE"
     echo "generated $key into .env"
   fi
 }
@@ -32,6 +33,7 @@ ensure_secret ADMIN_TOKEN
 ensure_secret MCP_BEARER_TOKEN
 ensure_secret REPLAY_TOKEN
 ensure_secret VIGIL_API_TOKEN
+ensure_secret VIGIL_OPERATOR_PASSCODE 8
 
 set -a
 # shellcheck disable=SC1090
@@ -118,8 +120,8 @@ wait_for "http://127.0.0.1:$HARNESS_PORT/" "trueforge harness" 60
 wait_for "http://127.0.0.1:$BACKEND_PORT/health" "vigil backend"
 
 DASHBOARD_ENV="$ROOT/apps/dashboard/.env.local"
-printf 'VIGIL_BACKEND_URL=http://127.0.0.1:%s\nVIGIL_API_TOKEN=%s\n' \
-  "$BACKEND_PORT" "$VIGIL_API_TOKEN" > "$DASHBOARD_ENV"
+printf 'VIGIL_BACKEND_URL=http://127.0.0.1:%s\nVIGIL_API_TOKEN=%s\nVIGIL_OPERATOR_PASSCODE=%s\n' \
+  "$BACKEND_PORT" "$VIGIL_API_TOKEN" "$VIGIL_OPERATOR_PASSCODE" > "$DASHBOARD_ENV"
 chmod 600 "$DASHBOARD_ENV"
 
 echo
@@ -130,4 +132,5 @@ echo "trueforge harness   http://127.0.0.1:$HARNESS_PORT"
 echo "vigil backend       http://127.0.0.1:$BACKEND_PORT"
 echo "logs                $LOG_DIR"
 echo
+echo "operator passcode   $VIGIL_OPERATOR_PASSCODE"
 echo "start the dashboard with: pnpm --filter @vigil/dashboard dev"
