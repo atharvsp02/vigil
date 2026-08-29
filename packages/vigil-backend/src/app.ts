@@ -11,7 +11,8 @@ import type {
   MetricsWindow,
 } from "@vigil/checkout-client";
 import type { IncidentSnapshot, IncidentStore } from "./incident.js";
-import { Investigation, InvestigationConflictError } from "./investigation.js";
+import type { Investigation} from "./investigation.js";
+import { InvestigationConflictError } from "./investigation.js";
 
 export const DEFAULT_ALERT =
   "PagerDuty: checkout error rate above 20 percent for 5 minutes on the payments service";

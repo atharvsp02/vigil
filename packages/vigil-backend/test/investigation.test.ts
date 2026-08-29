@@ -472,11 +472,18 @@ describe("Investigation", () => {
         cancel: async () => {
           cancelled += 1;
         },
-        streamTurn: async function* (_sessionId, _input, signal) {
+        streamTurn: (_sessionId, _input, signal) => {
           attempts += 1;
-          await new Promise<void>((_resolve, reject) => {
-            signal?.addEventListener("abort", () => reject(new Error("This operation was aborted")));
-          });
+          return {
+            [Symbol.asyncIterator]: () => ({
+              next: () =>
+                new Promise<IteratorResult<HarnessEvent>>((_resolve, reject) => {
+                  signal?.addEventListener("abort", () =>
+                    reject(new Error("This operation was aborted")),
+                  );
+                }),
+            }),
+          };
         },
       },
       store,
