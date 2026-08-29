@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CheckoutClient } from "@vigil/checkout-client";
 import type { ZodTypeAny } from "zod";
 import { registerObservabilityTools } from "../src/observability/tools.js";

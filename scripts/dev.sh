@@ -23,10 +23,20 @@ chmod 600 "$ENV_FILE"
 ensure_secret() {
   local key="$1"
   local bytes="${2:-24}"
-  if ! grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
-    printf '%s=%s\n' "$key" "$(openssl rand -hex "$bytes")" >> "$ENV_FILE"
-    echo "generated $key into .env"
+  local current
+  current="$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- || true)"
+  if [ -n "$current" ]; then
+    return
   fi
+  local value tmp
+  value="$(openssl rand -hex "$bytes")"
+  tmp="$(mktemp)"
+  grep -vE "^${key}=" "$ENV_FILE" > "$tmp" 2>/dev/null || true
+  chmod 600 "$tmp"
+  printf '%s=%s\n' "$key" "$value" >> "$tmp"
+  cat "$tmp" > "$ENV_FILE"
+  rm -f "$tmp"
+  echo "generated $key into .env"
 }
 
 ensure_secret ADMIN_TOKEN
@@ -118,6 +128,13 @@ wait_for "http://127.0.0.1:$OBSERVABILITY_PORT/health" "mcp observability"
 wait_for "http://127.0.0.1:$DEPLOYS_PORT/health" "mcp deploys"
 wait_for "http://127.0.0.1:$HARNESS_PORT/" "trueforge harness" 60
 wait_for "http://127.0.0.1:$BACKEND_PORT/health" "vigil backend"
+
+echo "registering MCP servers with the harness"
+HARNESS_BASE_URL="http://127.0.0.1:$HARNESS_PORT" \
+MCP_BEARER_TOKEN="$MCP_BEARER_TOKEN" \
+OBSERVABILITY_PORT="$OBSERVABILITY_PORT" \
+DEPLOYS_PORT="$DEPLOYS_PORT" \
+  node scripts/bootstrap-harness.mjs
 
 DASHBOARD_ENV="$ROOT/apps/dashboard/.env.local"
 printf 'VIGIL_BACKEND_URL=http://127.0.0.1:%s\nVIGIL_API_TOKEN=%s\nVIGIL_OPERATOR_PASSCODE=%s\n' \
