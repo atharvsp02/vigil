@@ -89,6 +89,8 @@ pnpm --filter @vigil/dashboard dev
 
 Open http://localhost:3000.
 
+The dashboard is read-only until you enter the operator passcode that `scripts/dev.sh` prints on startup. Watching an investigation needs nothing, but breaking the service, paging Vigil and approving a rollback all do, because those move real traffic.
+
 ### Watching an incident
 
 1. Click **Break the checkout service**. This activates the faulty `v1.4.0` deploy and sends real traffic through it, so the error rate climbs to roughly a third of requests.
@@ -134,7 +136,8 @@ pnpm build
 
 - Every token is generated locally into `.env`, which is git ignored, and the file is created with owner-only permissions.
 - The Gemini key lives in the harness, never in this repo and never in the browser.
-- The Vigil backend binds to loopback by default and requires a bearer token for anything that starts an investigation, decides an approval, or touches the checkout admin API. The dashboard holds that token server side and proxies browser calls, so it is never shipped to the client.
+- Credentials are layered so no tier inherits the one below it. The browser holds only the operator passcode the person typed, kept in `sessionStorage` for that tab. The dashboard server holds the backend bearer token. The backend holds the checkout admin token.
+- The Vigil backend binds to loopback by default and requires a bearer token for anything that starts an investigation, decides an approval, or touches the checkout admin API. Read-only state stays open so the timeline is watchable without credentials.
 - The replay runner verifies the Node archive it downloads against a pinned SHA-256 digest, extracts it with traversal protection, and runs inside a temporary directory.
 - `rollback-deploy` is the only write tool, and it cannot run without human approval.
 
