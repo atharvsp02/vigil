@@ -119,6 +119,13 @@ wait_for "http://127.0.0.1:$DEPLOYS_PORT/health" "mcp deploys"
 wait_for "http://127.0.0.1:$HARNESS_PORT/" "trueforge harness" 60
 wait_for "http://127.0.0.1:$BACKEND_PORT/health" "vigil backend"
 
+echo "registering MCP servers with the harness"
+HARNESS_BASE_URL="http://127.0.0.1:$HARNESS_PORT" \
+MCP_BEARER_TOKEN="$MCP_BEARER_TOKEN" \
+OBSERVABILITY_PORT="$OBSERVABILITY_PORT" \
+DEPLOYS_PORT="$DEPLOYS_PORT" \
+  node scripts/bootstrap-harness.mjs
+
 DASHBOARD_ENV="$ROOT/apps/dashboard/.env.local"
 printf 'VIGIL_BACKEND_URL=http://127.0.0.1:%s\nVIGIL_API_TOKEN=%s\nVIGIL_OPERATOR_PASSCODE=%s\n' \
   "$BACKEND_PORT" "$VIGIL_API_TOKEN" "$VIGIL_OPERATOR_PASSCODE" > "$DASHBOARD_ENV"
