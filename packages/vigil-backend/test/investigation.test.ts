@@ -19,6 +19,7 @@ const SPEC: AgentSpec = buildAgentSpec({
 
 class ScriptedGateway implements HarnessGateway {
   readonly inputs: unknown[][] = [];
+  cancelled = 0;
   private readonly script: HarnessEvent[][];
 
   constructor(script: HarnessEvent[][]) {
@@ -27,6 +28,10 @@ class ScriptedGateway implements HarnessGateway {
 
   async createSession(): Promise<string> {
     return "session-1";
+  }
+
+  async cancel(): Promise<void> {
+    this.cancelled += 1;
   }
 
   async *streamTurn(_sessionId: string, input: unknown[]): AsyncIterable<HarnessEvent> {
@@ -360,6 +365,7 @@ describe("Investigation", () => {
     expect(gateway.inputs[1]).toEqual([
       { type: "user.message", content: expect.stringContaining("Continue the investigation") },
     ]);
+    expect(gateway.cancelled).toBe(1);
     expect(store.get().status).toBe("awaiting_approval");
   });
 
@@ -456,12 +462,16 @@ describe("Investigation", () => {
     await investigation.waitForIdle();
   });
 
-  it("treats a turn timeout as retryable", async () => {
+  it("treats a turn timeout as retryable and cancels the abandoned turn", async () => {
     const store = new IncidentStore();
     let attempts = 0;
+    let cancelled = 0;
     const investigation = new Investigation({
       client: {
         createSession: async () => "session-1",
+        cancel: async () => {
+          cancelled += 1;
+        },
         streamTurn: async function* (_sessionId, _input, signal) {
           attempts += 1;
           await new Promise<void>((_resolve, reject) => {
@@ -481,6 +491,7 @@ describe("Investigation", () => {
     await investigation.waitForIdle();
 
     expect(attempts).toBe(2);
+    expect(cancelled).toBe(1);
     expect(store.get().status).toBe("failed");
     expect(store.get().error).toContain("timeout");
   });

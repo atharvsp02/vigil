@@ -57,6 +57,7 @@ export interface AgentSpec {
 export interface HarnessGateway {
   createSession(spec: AgentSpec): Promise<string>;
   streamTurn(sessionId: string, input: unknown[], signal?: AbortSignal): AsyncIterable<HarnessEvent>;
+  cancel?(sessionId: string): Promise<void>;
 }
 
 export class HarnessError extends Error {

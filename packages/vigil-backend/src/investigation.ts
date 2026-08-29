@@ -171,6 +171,7 @@ export class Investigation {
         return;
       }
       this.retries += 1;
+      await this.options.client.cancel?.(sessionId).catch(() => undefined);
       const wait = backoffMs(failure, this.retries, this.options.retryDelayMs ?? 2000);
       this.options.store.append({
         kind: "status",
