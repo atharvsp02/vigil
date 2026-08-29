@@ -24,7 +24,7 @@ ensure_secret() {
   local key="$1"
   local bytes="${2:-24}"
   local current
-  current="$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2-)"
+  current="$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- || true)"
   if [ -n "$current" ]; then
     return
   fi
@@ -32,6 +32,7 @@ ensure_secret() {
   value="$(openssl rand -hex "$bytes")"
   tmp="$(mktemp)"
   grep -vE "^${key}=" "$ENV_FILE" > "$tmp" 2>/dev/null || true
+  chmod 600 "$tmp"
   printf '%s=%s\n' "$key" "$value" >> "$tmp"
   cat "$tmp" > "$ENV_FILE"
   rm -f "$tmp"
