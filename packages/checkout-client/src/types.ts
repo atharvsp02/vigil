@@ -102,3 +102,15 @@ export interface ReplayBundle {
   runner: string;
   howToRun: string;
 }
+
+export interface LoadOptions {
+  requests?: number;
+  discountRatio?: number;
+  concurrency?: number;
+}
+
+export interface LoadResult {
+  requests: number;
+  succeeded: number;
+  failed: number;
+}
